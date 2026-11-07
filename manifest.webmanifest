@@ -1,0 +1,14 @@
+{
+  "name": "Dit-Dah Command",
+  "short_name": "Dit-Dah",
+  "description": "A one-button Morse code rhythm game with a light tactics layer.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1b130c",
+  "theme_color": "#1b130c",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

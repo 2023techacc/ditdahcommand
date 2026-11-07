@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1b130c">
+<meta name="description" content="Dit-Dah Command — a one-button Morse code rhythm game with a light tactics layer. Free web edition.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Dit-Dah Command</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script type="module" src="js/main.js"></script>
+</head>
+<body>
+<noscript><p style="padding:2em">Dit-Dah Command needs JavaScript.</p></noscript>
+
+<section id="scr-title" class="screen active">
+  <div class="title-inner">
+    <div class="ticker" aria-hidden="true"><span>·· &nbsp;——· &nbsp;—·— &nbsp;&nbsp; — &nbsp;···· &nbsp;—·— &nbsp;&nbsp; ··· &nbsp;——— &nbsp;··· &nbsp;&nbsp; ·—·—· &nbsp;&nbsp; ·· &nbsp;——· &nbsp;—·— &nbsp;&nbsp; — &nbsp;···· &nbsp;—·—</span></div>
+    <h1 class="logo">DIT-DAH<br><span>COMMAND</span></h1>
+    <p class="tagline">Your orders are tapped in Morse, on the beat.<br>Your units only obey a clean signal.</p>
+    <div id="title-cal" class="cal-banner hidden">
+      <span>First time? A 20-second calibration makes timing fair on your device.</span>
+      <span class="cal-banner-btns">
+        <button class="btn small primary" id="title-cal-btn">Calibrate</button>
+        <button class="btn small ghost" id="title-cal-skip">Skip</button>
+      </span>
+    </div>
+    <nav id="title-nav" class="title-nav"></nav>
+    <p class="foot">Free web edition · not for sale · all music is synthesised live in your browser.<br>Best with headphones. Space / any key / tap = telegraph key · Esc = pause.</p>
+  </div>
+</section>
+
+<section id="scr-menu" class="screen"></section>
+
+<section id="scr-game" class="screen" data-layout="mission">
+  <header class="hud">
+    <button class="icon-btn" id="btn-pause" aria-label="Pause">❚❚</button>
+    <div class="hud-mid">
+      <div id="hud-mission" class="hud-mission"></div>
+      <div id="hud-phase" class="phase">
+        <div class="seg" data-seg="report" style="flex:2">REPORT</div>
+        <div class="seg" data-seg="choose" style="flex:1">CHOOSE</div>
+        <div class="seg" data-seg="tx" style="flex:4">TRANSMIT</div>
+        <div class="seg" data-seg="res" style="flex:1">RESOLVE</div>
+        <div id="phase-cursor"></div>
+        <div id="phase-count" class="phase-count hidden"></div>
+      </div>
+    </div>
+    <div class="hud-score"><div id="hud-score">0</div><div id="hud-mult">×1</div></div>
+  </header>
+
+  <div class="stage">
+    <div class="map-wrap">
+      <canvas id="map" data-key="key"></canvas>
+      <ul id="hud-objs" class="objs"></ul>
+      <div id="drill-panel" class="drill-panel" data-key="key">
+        <div class="dp-lamp"></div>
+        <div class="dp-phase"></div>
+        <div class="dp-letters"></div>
+        <div class="dp-code"></div>
+        <div class="dp-name"></div>
+        <div class="dp-progress"></div>
+      </div>
+      <div id="free-panel" class="free-panel"></div>
+    </div>
+    <aside class="side">
+      <div class="radio">
+        <div class="radio-head"><span class="led"></span><span id="radio-from">HQ</span></div>
+        <div id="radio-text" class="radio-text"></div>
+        <div id="radio-code" class="code"></div>
+      </div>
+      <div class="ada"><div class="ada-face">AV</div><div id="ada-text"></div></div>
+      <div id="codecard" class="codecard"></div>
+    </aside>
+  </div>
+
+  <div class="tape-wrap">
+    <canvas id="tape" data-key="key"></canvas>
+    <div id="pop" class="pop"></div>
+  </div>
+
+  <div class="keys">
+    <button class="key key-main" data-key="key" aria-label="Telegraph key"><span>KEY</span><small>tap = dit · hold = dah</small></button>
+    <button class="key key-dit" data-key="dit" aria-label="Dit paddle"><span>DIT ·</span></button>
+    <button class="key key-dah" data-key="dah" aria-label="Dah paddle"><span>DAH —</span></button>
+  </div>
+</section>
+
+<div id="overlay" class="overlay hidden"></div>
+<div id="edge" class="edge" aria-hidden="true"></div>
+</body>
+</html>
