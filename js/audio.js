@@ -37,11 +37,7 @@ export class AudioEngine {
     comp.ratio.value = 4;
     this.master.connect(comp).connect(ctx.destination);
 
-    this.musicBus = ctx.createGain();
-    this.musicDuck = ctx.createGain();
-    this.musicBus.connect(this.musicDuck).connect(this.master);
-    this.sfxBus = ctx.createGain();
-    this.sfxBus.connect(this.master);
+    this.makeBuses();
     this.keyBus = ctx.createGain();
     this.keyBus.connect(this.master);
 
@@ -90,6 +86,37 @@ export class AudioEngine {
     s.start(0);
     this.applyVolumes();
     this.sync(true);
+  }
+
+  // Music and effects go through buses that can be thrown away, so sounds
+  // already scheduled ahead (reports, ghost tones, drills) stop on exit.
+  makeBuses() {
+    const ctx = this.ctx;
+    this.musicBus = ctx.createGain();
+    this.musicDuck = ctx.createGain();
+    this.musicBus.connect(this.musicDuck).connect(this.master);
+    this.sfxBus = ctx.createGain();
+    this.sfxBus.connect(this.master);
+  }
+
+  silence() {
+    if (!this.ctx) return;
+    this.keyOffNow();
+    const old = [this.musicBus, this.musicDuck, this.sfxBus];
+    const running = this.ctx.state === 'running';
+    if (running) {
+      const t = this.ctx.currentTime;
+      for (const g of old) {
+        g.gain.cancelScheduledValues(t);
+        g.gain.setValueAtTime(g.gain.value, t);
+        g.gain.linearRampToValueAtTime(0, t + 0.04);
+      }
+    }
+    const cut = () => old.forEach((g) => { try { g.disconnect(); } catch (e) { /* already gone */ } });
+    if (running) setTimeout(cut, 60);
+    else cut();
+    this.makeBuses();
+    this.applyVolumes();
   }
 
   applyVolumes() {

@@ -51,6 +51,11 @@ Tap = dit (·, one unit). Hold three times as long = dah (—). Every order is
 - **Guidance fades** — Acts 1–2 show the suggested code on the tape with a ghost tone, Act 3 only
   helps if you hesitate, Act 4 is from memory. Act 4 adds 16th-note units, tempo shifts, swing
   and spoofed orders with sloppy rhythm.
+- **Easy mode** — one switch (title screen, briefings, Practice, or Settings) that shows every
+  hint in every mission: the suggested code on the tape, the guide tone, full subtitles, HQ's
+  orders in decode missions (and which ones are fakes), plus wider timing windows.
+- **Practice** — drill any letters, letter groups or full orders at any tempo (8, 12, 20 or
+  endless), or replay any unlocked mission with no fail. Nothing is scored or saved.
 - **Paddle School** — five iambic lessons; finishing it unlocks paddles everywhere.
 - **Extra modes** — Free Key (live decoder / trainer), Long Watch (endless, rising tempo,
   three strikes), Daily Dispatch (seeded daily decode; scores stay on this device), Codebook,

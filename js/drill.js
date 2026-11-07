@@ -1,7 +1,7 @@
 // Drills ("listen, then repeat"), Free Key practice, and latency calibration.
 import { Session } from './session.js';
 import { SONGS, Music, keyToneFor } from './audio.js';
-import { layoutTokens, unitsOf, pretty, codeOf, UNIT_INFO, ORDER_INFO, SPECIAL_INFO, wpmFromUnit } from './morse.js';
+import { layoutTokens, unitsOf, pretty, codeOf, UNIT_INFO, ORDER_INFO, SPECIAL_INFO, wpmFromUnit, describeOrder } from './morse.js';
 import { J_POINTS, J_SHAPES, J_NAMES, J_CLASS } from './keyer.js';
 
 export function tokenName(tokens) {
@@ -12,6 +12,7 @@ export function tokenName(tokens) {
     return n ? `${t} — ${n}` : t;
   }
   if (j === 'CQ') return 'CQ — all units';
+  if (tokens.length === 3 && tokens[2] === 'K' && UNIT_INFO[tokens[0]] && ORDER_INFO[tokens[1]]) return `${describeOrder(tokens[0], tokens[1])}, over`;
   return tokens.join(' ');
 }
 
@@ -50,14 +51,23 @@ export class DrillRun extends Session {
       if (cfg.timeLimit && t - this.t0 >= cfg.timeLimit && this.segs.length >= 3) break;
     }
     this.tEnd = t;
-    for (const seg of this.segs) {
-      for (const e of seg.listenEls) this.audio.tone(this.audio.toCtx(e.t0), e.t1 - e.t0, this.audio.keyFreq, 0.2, 'sine', 'music', { attack: 0.005, release: 0.008 });
-    }
+    this.schedIdx = 0;
+    this.scheduleAhead(this.audio.heardNow());
     const tl = { phrase: (k) => ({ start: this.t0 + k * 8 * this.bar, bpm, swing: 0 }) };
     this.music.start(this.song, tl);
     this.music.finishAt(this.tEnd);
     this.makeKeyer(() => ({ origin: this.t0, unit: this.unit }));
     this.app.hud.drill({ title: cfg.title, phase: 'Get ready…', tokens: this.segs[0].item, progress: `0 / ${this.segs.length}` });
+  }
+
+  // Schedule "listen" tones a little ahead, so long or endless drills stay light.
+  scheduleAhead(now) {
+    while (this.schedIdx < this.segs.length && this.segs[this.schedIdx].listen < now + 2) {
+      for (const e of this.segs[this.schedIdx].listenEls) {
+        this.audio.tone(this.audio.toCtx(e.t0), e.t1 - e.t0, this.audio.keyFreq, 0.2, 'sine', 'music', { attack: 0.005, release: 0.008 });
+      }
+      this.schedIdx++;
+    }
   }
 
   segAt(t) {
@@ -78,6 +88,7 @@ export class DrillRun extends Session {
   }
 
   update(now) {
+    this.scheduleAhead(now);
     const idx = this.segs.findIndex((s) => now >= s.listen && now < s.end);
     if (idx !== this.segIdx && idx >= 0) {
       if (this.segIdx >= 0) this.grade(this.segs[this.segIdx]);

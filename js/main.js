@@ -102,16 +102,18 @@ function titleScreen() {
   nav.replaceChildren(
     h('button', { class: 'btn primary big', onclick: () => (next ? briefing(next) : campaignScreen()) }, done ? (next ? `Continue — ${next.n}. ${next.title}` : 'Campaign') : 'Start Campaign'),
     h('button', { class: 'btn', onclick: campaignScreen }, `Campaign  ·  ${done}/${MISSIONS.length}`),
+    h('div', { class: 'row2' },
+      h('button', { class: 'btn', onclick: practiceScreen }, 'Practice'),
+      h('button', { class: 'btn', onclick: freeKeyScreen }, 'Free Key')),
     h('button', { class: 'btn', onclick: paddleScreen }, cleared('m10') ? 'Paddle School' : 'Paddle School 🔒'),
     h('div', { class: 'row2' },
-      h('button', { class: 'btn', onclick: freeKeyScreen }, 'Free Key'),
-      h('button', { class: 'btn', onclick: dailyScreen }, 'Daily Dispatch')),
+      h('button', { class: 'btn', onclick: dailyScreen }, 'Daily Dispatch'),
+      h('button', { class: 'btn', onclick: longWatchScreen }, 'Long Watch')),
     h('div', { class: 'row2' },
-      h('button', { class: 'btn', onclick: longWatchScreen }, 'Long Watch'),
-      h('button', { class: 'btn', onclick: codebookScreen }, 'Codebook')),
-    h('div', { class: 'row2' },
-      h('button', { class: 'btn', onclick: () => calibrateScreen(titleScreen) }, 'Calibrate'),
-      h('button', { class: 'btn', onclick: () => settingsScreen(titleScreen) }, 'Settings')),
+      h('button', { class: 'btn', onclick: codebookScreen }, 'Codebook'),
+      h('button', { class: 'btn', onclick: () => calibrateScreen(titleScreen) }, 'Calibrate')),
+    h('button', { class: 'btn', onclick: () => settingsScreen(titleScreen) }, 'Settings'),
+    easyToggle(),
   );
   $('#title-cal').classList.toggle('hidden', !!app.save.calibrated);
 }
@@ -187,7 +189,9 @@ function briefing(m) {
       hasDrill && !pr?.cleared ? h('button', { class: 'btn primary big', onclick: () => runDrill(m, startMission) }, 'Drill (30 s), then mission') : null,
       h('button', { class: 'btn' + (hasDrill && !pr?.cleared ? '' : ' primary big'), onclick: startMission }, hasDrill && !pr?.cleared ? 'Skip drill — start mission' : 'Start mission'),
       hasDrill && pr?.cleared ? h('button', { class: 'btn', onclick: () => runDrill(m, () => briefing(m)) }, 'Practise drill') : null,
+      h('button', { class: 'btn', onclick: () => runMission(m, { mode: 'practice' }) }, 'Practice (no fail, not saved)'),
       backBtn(campaignScreen, '← Campaign')),
+    easyToggle(() => briefing(m)),
     h('p', { class: 'muted small tip' }, useIambic()
       ? 'Iambic paddles: left (Z / ← / left button) = dit, right (X / → / right button) = dah.'
       : 'Key: Space or any key, mouse button, or tap/hold the big KEY button. Esc pauses.'),
@@ -226,6 +230,7 @@ function stopSession() {
   if (app.session) {
     app.session.stop();
     app.session = null;
+    app.audio.silence();
   }
   if (app.audio.ctx && app.audio.ctx.state === 'suspended') app.audio.resume();
   hideOverlay();
@@ -263,6 +268,7 @@ function drillDone(sess, r) {
     if (passed) { app.save.paddle[cfg.paddle] = true; persist(); }
     return resultsDrill(r, passed, () => paddleScreen());
   }
+  if (cfg.practice) return resultsDrill(r, true, practiceScreen, { title: 'Practice complete', back: '← Practice', again: () => startPracticeDrill() });
   overlay(
     h('h2', {}, 'Drill complete'),
     h('p', { class: 'big-num' }, `${r.correct} / ${r.total}`),
@@ -273,19 +279,21 @@ function drillDone(sess, r) {
   );
 }
 
-function resultsDrill(r, passed, back) {
+function resultsDrill(r, passed, back, opts = {}) {
   menu(
-    h('h1', {}, passed ? 'Lesson passed' : 'Not yet'),
+    h('h1', {}, opts.title || (passed ? 'Lesson passed' : 'Not yet')),
     h('p', { class: 'big-num' }, `${r.correct} / ${r.total}`),
     h('ul', { class: 'drill-list' }, r.results.map((x) => h('li', { class: x.ok ? 'ok' : 'bad' }, `${x.ok ? '✓' : '✗'} ${x.want}`, x.ok ? h('span', { class: 'muted' }, ` ${J_NAMES[x.q]}`) : h('span', { class: 'muted' }, ` heard "${x.got || '…'}"`)))),
-    h('p', { class: 'muted' }, 'Pass mark: 60% correct letters.'),
-    backBtn(back, '← Paddle School'),
+    opts.title ? h('p', { class: 'muted' }, `Signal accuracy ${pct(r.accuracy)} · ${r.wpm.toFixed(1)} WPM`) : h('p', { class: 'muted' }, 'Pass mark: 60% correct letters.'),
+    h('div', { class: 'brief-actions' },
+      opts.again ? h('button', { class: 'btn primary', onclick: opts.again }, 'Again') : null,
+      backBtn(back, opts.back || '← Paddle School')),
   );
 }
 
 function missionDone(r, ctx) {
   const m = r.mission;
-  if (r.success) {
+  if (r.success && r.mode !== 'practice') {
     const book = r.encore ? app.save.encore : app.save.progress;
     const prev = book[m.id] || {};
     const order = ['S', 'A', 'B', 'C', '—'];
@@ -296,7 +304,7 @@ function missionDone(r, ctx) {
     for (const c of CODEBOOK) if (c.mission && m.n >= c.mission) app.unlockCode(c.key);
     persist();
   }
-  if (m.finale && r.success) return endingScreen(() => resultsScreen(r));
+  if (m.finale && r.success && r.mode !== 'practice') return endingScreen(() => resultsScreen(r));
   resultsScreen(r);
 }
 
@@ -306,7 +314,7 @@ function resultsScreen(r) {
   const lines = r.success ? ADA_LINES.win : ADA_LINES.lose;
   menu(
     h('div', { class: 'results' },
-      h('div', { class: 'muted' }, `Mission ${m.n} · ${m.title}${r.encore ? ' · Encore' : ''}${r.iambic ? ' · Paddles' : ''}`),
+      h('div', { class: 'muted' }, `Mission ${m.n} · ${m.title}${r.mode === 'practice' ? ' · Practice (not saved)' : ''}${r.encore ? ' · Encore' : ''}${r.iambic ? ' · Paddles' : ''}`),
       h('h1', {}, r.success ? 'Mission complete' : 'Mission failed'),
       r.success ? null : h('p', { class: 'bad' }, r.reason),
       h('div', { class: 'rank-big rank-' + r.rank }, r.rank),
@@ -321,9 +329,9 @@ function resultsScreen(r) {
       r.bonus ? h('p', {}, `Bonus: +${r.bonus}`) : null,
       h('div', { class: 'dialogue small' }, h('div', { class: 'ada-face' }, 'AV'), h('p', {}, pick(lines))),
       h('div', { class: 'brief-actions' },
-        r.success && next && missionUnlocked(next) ? h('button', { class: 'btn primary big', onclick: () => briefing(next) }, `Next: ${next.title}`) : null,
-        h('button', { class: 'btn' + (r.success ? '' : ' primary big'), onclick: () => runMission(m, { encore: r.encore }) }, 'Retry'),
-        backBtn(campaignScreen, '← Campaign'))),
+        r.success && r.mode !== 'practice' && next && missionUnlocked(next) ? h('button', { class: 'btn primary big', onclick: () => briefing(next) }, `Next: ${next.title}`) : null,
+        h('button', { class: 'btn' + (r.success ? '' : ' primary big'), onclick: () => runMission(m, { encore: r.encore, mode: r.mode === 'practice' ? 'practice' : undefined }) }, 'Retry'),
+        r.mode === 'practice' ? backBtn(practiceScreen, '← Practice') : backBtn(campaignScreen, '← Campaign'))),
   );
 }
 function stat(label, value) {
@@ -341,6 +349,128 @@ function endingScreen(then) {
   nextLine();
   app.save.finale = true;
   persist();
+}
+
+// ---------------------------------------------------------------- easy mode
+function easyToggle(onChange) {
+  const on = app.settings.difficulty === 'easy';
+  return h('label', { class: 'toggle easy-toggle' + (on ? ' on' : '') },
+    h('input', { type: 'checkbox', checked: on, onchange: (e) => {
+      app.settings.difficulty = e.target.checked ? 'easy' : 'normal';
+      persist();
+      (onChange || titleScreen)();
+    } }),
+    h('span', {}, h('b', {}, 'Easy mode'), ' — shows every hint: the code on the tape, a guide tone, subtitles and HQ orders. Wider timing.'));
+}
+
+// ---------------------------------------------------------------- practice
+const GAME_LETTERS = ['T', 'I', 'S', 'M', 'A', 'G', 'H', 'F', 'R', 'D', 'C', 'K', 'Q'];
+const PROSIGN_LIST = ['SOS', 'AR'];
+const OTHER_LETTERS = Object.keys(MORSE).filter((k) => /[A-Z0-9]/.test(k) && !GAME_LETTERS.includes(k));
+
+function practiceCfg() {
+  const p = app.save.practice || {};
+  app.save.practice = {
+    letters: p.letters || ['T', 'I', 'G', 'H', 'K'],
+    kind: p.kind || 'letters', bpm: p.bpm || 100, div: p.div || 2, count: p.count ?? 12,
+  };
+  return app.save.practice;
+}
+
+function practiceItems(cfg) {
+  const rnd = (a) => a[Math.floor(Math.random() * a.length)];
+  const L = cfg.letters.length ? cfg.letters : ['E', 'T'];
+  const n = cfg.count || 300;
+  const items = [];
+  let last = null;
+  for (let i = 0; i < n; i++) {
+    let item;
+    if (cfg.kind === 'orders') {
+      const us = L.filter((l) => UNIT_INFO[l]);
+      const os = L.filter((l) => ORDER_INFO[l]);
+      item = [rnd(us.length ? us : Object.keys(UNIT_INFO)), rnd(os.length ? os : Object.keys(ORDER_INFO)), 'K'];
+    } else if (cfg.kind === 'groups') {
+      const len = 2 + Math.floor(Math.random() * 2);
+      item = Array.from({ length: len }, () => rnd(L));
+    } else {
+      item = [rnd(L)];
+      if (L.length > 1 && item[0] === last) item = [rnd(L.filter((x) => x !== last))];
+      last = item[0];
+    }
+    items.push(item);
+  }
+  return items;
+}
+
+function startPracticeDrill() {
+  const cfg = practiceCfg();
+  persist();
+  const what = cfg.kind === 'orders' ? 'orders' : cfg.kind === 'groups' ? 'letter groups' : 'letters';
+  const sess = new DrillRun(app, {
+    title: `Practice — ${what}${cfg.count ? '' : ' (endless)'}`,
+    items: practiceItems(cfg), bpm: cfg.bpm, unitDiv: cfg.div, iambic: useIambic(), practice: true,
+  });
+  startSession(sess, 'drill');
+}
+
+function practiceScreen() {
+  stopSession();
+  const cfg = practiceCfg();
+  const save = () => persist();
+  const chip = (l) => {
+    const on = cfg.letters.includes(l);
+    return h('button', {
+      class: 'pick' + (on ? ' on' : ''),
+      onclick: (e) => {
+        const i = cfg.letters.indexOf(l);
+        if (i >= 0) cfg.letters.splice(i, 1); else cfg.letters.push(l);
+        e.currentTarget.classList.toggle('on', i < 0);
+        save();
+      },
+    }, h('b', {}, l), h('span', {}, pretty(codeOf(l))));
+  };
+  const setAll = (list, on) => {
+    for (const l of list) {
+      const i = cfg.letters.indexOf(l);
+      if (on && i < 0) cfg.letters.push(l);
+      if (!on && i >= 0) cfg.letters.splice(i, 1);
+    }
+    save();
+    practiceScreen();
+  };
+  const seg = (key, opts) => h('div', { class: 'segbtns' }, opts.map(([v, label]) => h('button', {
+    class: 'btn small' + (cfg[key] === v ? ' primary' : ''),
+    onclick: () => { cfg[key] = v; save(); practiceScreen(); },
+  }, label)));
+  const wpm = () => (1.2 / (60 / (cfg.bpm * app.settings.speed) / cfg.div)).toFixed(1);
+  const wpmOut = h('span', { class: 'range-v' }, `${cfg.bpm} BPM · ≈${wpm()} WPM`);
+  const unlocked = MISSIONS.filter((m) => missionUnlocked(m));
+  menu(
+    h('h1', {}, 'Practice'),
+    h('p', { class: 'muted' }, 'Drill any letters at your own speed: listen to each one, then key it back on the beat. Nothing here is scored or saved.'),
+    easyToggle(practiceScreen),
+    h('h2', {}, 'Letters to drill'),
+    h('div', { class: 'pick-head' }, h('b', {}, 'Game letters'),
+      h('button', { class: 'btn small ghost', onclick: () => setAll(GAME_LETTERS, true) }, 'All'),
+      h('button', { class: 'btn small ghost', onclick: () => setAll([...GAME_LETTERS, ...PROSIGN_LIST, ...OTHER_LETTERS], false) }, 'None')),
+    h('div', { class: 'picks' }, GAME_LETTERS.map(chip), PROSIGN_LIST.map(chip)),
+    h('div', { class: 'pick-head' }, h('b', {}, 'Rest of the alphabet'),
+      h('button', { class: 'btn small ghost', onclick: () => setAll(OTHER_LETTERS, true) }, 'All')),
+    h('div', { class: 'picks' }, OTHER_LETTERS.map(chip)),
+    h('h2', {}, 'Drill type'),
+    seg('kind', [['letters', 'Single letters'], ['groups', 'Groups of 2–3'], ['orders', 'Full orders (who + what + K)']]),
+    h('h2', {}, 'Speed'),
+    h('div', { class: 'range' }, h('input', { type: 'range', min: 60, max: 160, step: 5, value: cfg.bpm, oninput: (e) => { cfg.bpm = +e.target.value; wpmOut.textContent = `${cfg.bpm} BPM · ≈${wpm()} WPM`; save(); } }), wpmOut),
+    seg('div', [[2, 'Dit = 8th note (slower)'], [4, 'Dit = 16th note (faster)']]),
+    h('h2', {}, 'Length'),
+    seg('count', [[8, '8'], [12, '12'], [20, '20'], [0, 'Endless']]),
+    h('div', { class: 'brief-actions' }, h('button', { class: 'btn primary big', onclick: startPracticeDrill }, 'Start drill')),
+    h('h2', {}, 'Practise a mission'),
+    h('p', { class: 'muted small' }, 'Play any unlocked mission with no fail. Results are not saved.'),
+    h('div', { class: 'mission-grid' }, unlocked.map((m) => h('button', { class: 'mission-card', onclick: () => runMission(m, { mode: 'practice' }) },
+      h('div', { class: 'mc-n' }, m.n), h('div', { class: 'mc-body' }, h('div', { class: 'mc-title' }, m.title))))),
+    backBtn(),
+  );
 }
 
 // ---------------------------------------------------------------- paddle school
@@ -548,7 +678,7 @@ function settingsScreen(back) {
   menu(
     h('h1', {}, 'Settings'),
     h('h2', {}, 'Play'),
-    row('Judgement windows', select('difficulty', [['easy', 'Easy (+30%)'], ['normal', 'Normal'], ['hard', 'Hard (−20%)']])),
+    row('Judgement windows', select('difficulty', [['easy', 'Easy — wider timing, shows all hints'], ['normal', 'Normal'], ['hard', 'Hard (−20%)']])),
     row('Mode', select('playMode', [['standard', 'Standard'], ['copilot', 'Copilot — order chosen for you'], ['strategist', 'Strategist — wide windows, harder enemy']])),
     row('Song speed', range('speed', 0.5, 1.5, 0.05, (v) => `${Math.round(v * 100)}%`)),
     row('Ghost track', select('ghost', [['ahead', 'One bar ahead'], ['sync', 'In sync'], ['off', 'Off']]), 'Faint guide tone for the suggested order'),
@@ -647,6 +777,8 @@ function pauseGame() {
     const m = s.m;
     stopSession();
     if (s instanceof MissionRun && s.mode === 'campaign') briefing(m);
+    else if (s instanceof MissionRun && s.mode === 'practice') practiceScreen();
+    else if (s instanceof DrillRun && s.cfg.practice) practiceScreen();
     else if (s instanceof DrillRun && s.cfg.paddle) paddleScreen();
     else if (s instanceof MissionRun && s.mode === 'paddle') paddleScreen();
     else titleScreen();
@@ -662,6 +794,13 @@ function pauseGame() {
       h('button', { class: 'btn primary big', onclick: async () => { hideOverlay(); await s.resume(); } }, 'Resume'),
       h('button', { class: 'btn', onclick: restart }, 'Restart'),
       s instanceof DrillRun && s.then ? h('button', { class: 'btn', onclick: () => { stopSession(); s.then(); } }, 'Skip drill') : null,
+      s instanceof DrillRun && s.cfg.practice ? h('button', { class: 'btn', onclick: async () => {
+        hideOverlay();
+        app.audio.silence();
+        await app.audio.resume();
+        s.paused = false;
+        s.finish();
+      } }, 'End practice — see results') : null,
       h('button', { class: 'btn', onclick: quit }, 'Quit')),
     h('p', { class: 'muted small' }, 'Timing feels off? Adjust offsets in Settings from the title screen.'),
   );

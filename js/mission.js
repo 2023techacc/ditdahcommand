@@ -29,7 +29,7 @@ export class MissionRun extends Session {
     this.battle = new Battle(clone(m.setup), {
       dmgMult: this.strategist ? 1.25 : 1,
       smart: this.strategist,
-      noFail: S.noFail && this.mode !== 'longwatch',
+      noFail: (S.noFail || this.mode === 'practice') && this.mode !== 'longwatch',
     });
     this.objectives = clone(m.objectives || []);
     this.ph = [];
@@ -82,6 +82,11 @@ export class MissionRun extends Session {
       g.reportVisual = true;
     }
     if (S.showCodes === 'always') g.codes = true;
+    // Easy mode shows everything: suggestion, code on the tape, ghost tone,
+    // subtitles, the lamp flashing the report — even in decode missions.
+    if (S.difficulty === 'easy') {
+      g = { suggest: 'always', lane: true, ghost: Math.max(g.ghost, 0.8), subtitles: 'full', reportVisual: true, codes: true, easy: true };
+    }
     if (S.ghost === 'off') g.ghost = 0;
     return g;
   }
@@ -135,7 +140,7 @@ export class MissionRun extends Session {
     this.music.start(this.song, { phrase: (k) => this.phrase(k) });
     this.app.map.apply(this.battle.snapshot());
     this.app.map.setFlags(this.objectiveFlags());
-    hud.setMission(this.m.title, this.mode);
+    hud.setMission(this.m.title + (this.mode === 'practice' ? ' · PRACTICE' : '') + (this.guide.easy ? ' · EASY' : ''), this.mode);
     hud.setScore(0, 1);
     hud.radio('', '', '');
     hud.ada(this.m.decode ? 'Listen for HQ. Decode it, then relay it.' : 'Here we go — one bar count-in…');
@@ -189,6 +194,7 @@ export class MissionRun extends Session {
       if (this.m.decode) {
         const hqKnown = new Set([...this.known].filter((l) => l !== 'SOS' && l !== 'Q'));
         let hq = this.battle.suggest(hqKnown, this.objectives, k) || sug;
+        P.realHq = hq;
         P.fake = (this.m.spoof || []).includes(k);
         if (P.fake) {
           const bad = this.battle.badOrder(hqKnown);
@@ -197,6 +203,7 @@ export class MissionRun extends Session {
         }
         P.hq = hq;
         P.sugg = hq;
+        if (this.guide.easy && P.fake) P.sugg = P.realHq;
         reportTokens = [hq.unit, hq.order];
       } else if (sug) {
         reportTokens = sug.unit === 'SOS' ? ['SOS'] : sug.unit === 'CQ' ? ['C', 'Q', sug.order] : [sug.unit, sug.order];
@@ -364,7 +371,10 @@ export class MissionRun extends Session {
     let text = '';
     let code = '';
     const sub = this.guide.subtitles;
-    if (this.m.decode) {
+    if (this.m.decode && this.guide.easy && P.hq) {
+      text = `HQ order: ${describeOrder(P.hq.unit, P.hq.order)}.` + (P.fake ? ' It wobbles off the beat — FAKE! Send something else.' : '');
+      code = pretty(codeOf(P.hq.unit) + ' ' + codeOf(P.hq.order));
+    } else if (this.m.decode) {
       text = 'Incoming order… decode it and relay it.';
     } else if (sub === 'full') {
       text = P.text + (P.sugg ? ` Suggest: ${P.sugg.unit === 'SOS' ? 'SOS' : describeOrder(P.sugg.unit, P.sugg.order)}.` : '');
@@ -398,7 +408,8 @@ export class MissionRun extends Session {
     const s = P.sugg;
     const tok = P.tokens.join(' ');
     const what = s.unit === 'SOS' ? 'call for reinforcements' : describeOrder(s.unit, s.order);
-    this.app.hud.ada(`${hesitated ? 'Try: ' : ''}${tok} — ${what}.`);
+    const fake = P.fake && this.guide.easy ? "That HQ order was a fake. Send this instead: " : '';
+    this.app.hud.ada(`${fake}${hesitated ? 'Try: ' : ''}${tok} — ${what}.`);
     if (this.guide.lane) P.showTargets = true;
     this.refreshCodecard(s);
   }

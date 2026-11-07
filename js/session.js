@@ -121,6 +121,7 @@ export class Session {
   stop() {
     this.ended = true;
     this.releaseAll();
+    this.audio.silence();
   }
 
   keyedForTape() {
