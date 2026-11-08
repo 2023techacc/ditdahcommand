@@ -3,16 +3,17 @@ import { Session } from './session.js';
 import { SONGS, Music, keyToneFor } from './audio.js';
 import { layoutTokens, unitsOf, pretty, codeOf, UNIT_INFO, ORDER_INFO, SPECIAL_INFO, wpmFromUnit, describeOrder } from './morse.js';
 import { J_POINTS, J_SHAPES, J_NAMES, J_CLASS } from './keyer.js';
+import { t } from './i18n.js';
 
 export function tokenName(tokens) {
   const j = tokens.join('');
   if (tokens.length === 1) {
-    const t = tokens[0];
-    const n = UNIT_INFO[t]?.name || ORDER_INFO[t]?.name || SPECIAL_INFO[t]?.name;
-    return n ? `${t} — ${n}` : t;
+    const tk = tokens[0];
+    const n = UNIT_INFO[tk]?.name || ORDER_INFO[tk]?.name || SPECIAL_INFO[tk]?.name;
+    return n ? `${tk} — ${t(n)}` : tk;
   }
-  if (j === 'CQ') return 'CQ — all units';
-  if (tokens.length === 3 && tokens[2] === 'K' && UNIT_INFO[tokens[0]] && ORDER_INFO[tokens[1]]) return `${describeOrder(tokens[0], tokens[1])}, over`;
+  if (j === 'CQ') return 'CQ — ' + t('all units');
+  if (tokens.length === 3 && tokens[2] === 'K' && UNIT_INFO[tokens[0]] && ORDER_INFO[tokens[1]]) return `${describeOrder(tokens[0], tokens[1])}, ${t('over')}`;
   return tokens.join(' ');
 }
 
@@ -83,7 +84,7 @@ export class DrillRun extends Session {
     l.offAir = !seg || l.els[0].offAir;
     if (!seg || l.offAir) return;
     seg.letters.push(l);
-    this.app.hud.pop(`${J_SHAPES[l.q]} ${J_NAMES[l.q]}  ${l.sym || '?'}`, J_CLASS[l.q]);
+    this.app.hud.pop(`${J_SHAPES[l.q]} ${t(J_NAMES[l.q])}  ${l.sym || '?'}`, J_CLASS[l.q]);
     if (l.q <= 1 && l.sym) this.app.unlockCode(l.sym);
   }
 
@@ -116,7 +117,7 @@ export class DrillRun extends Session {
     const ok = want === got;
     const pts = ok ? J_POINTS[q] : 0;
     this.results.push({ want, got, ok, q, pts });
-    this.app.hud.pop(ok ? `${want} ✓ ${J_NAMES[q]}` : `${want} ✗ heard "${got || '…'}"`, ok ? J_CLASS[q] : 'garbled');
+    this.app.hud.pop(ok ? `${want} ✓ ${t(J_NAMES[q])}` : `${want} ✗ ${t('heard "{w}"', { w: got || '…' })}`, ok ? J_CLASS[q] : 'garbled');
   }
 
   finish() {

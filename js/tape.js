@@ -1,5 +1,6 @@
 // Ticker-tape lane: time flows right to left into the transmit line.
 import { J_SHAPES } from './keyer.js';
+import { t as tr } from './i18n.js';
 
 const COL = {
   paper: '#efe3c6',
@@ -23,6 +24,8 @@ export class TapeView {
     this.g = canvas.getContext('2d');
     this.w = 0;
     this.h = 0;
+    this.style = 'classic';
+    this.zoom = 1;
     this.resize();
   }
 
@@ -49,7 +52,8 @@ export class TapeView {
     const g = this.g;
     const W = this.w, H = this.h;
     if (this.c.width === 0) return;
-    const pxPerUnit = Math.max(12, Math.min(36, W / 26));
+    if (this.style === 'clear') return this.drawClear(s);
+    const pxPerUnit = Math.max(12, Math.min(36, W / 26)) * this.zoom;
     const pps = pxPerUnit / s.unit;
     const lineX = Math.round(W * (s.lineFrac ?? 0.3));
     const X = (t) => lineX + (t - s.now) * pps;
@@ -149,7 +153,7 @@ export class TapeView {
       g.fillStyle = 'rgba(31,110,62,0.95)';
       g.font = '800 10px system-ui, sans-serif';
       g.textAlign = 'center';
-      g.fillText(m.label, x, strong || m.kind === 'word' ? H - 7 : 29);
+      g.fillText(tr(m.label), x, strong || m.kind === 'word' ? H - 7 : 29);
       g.textAlign = 'left';
     }
 
@@ -206,6 +210,174 @@ export class TapeView {
     g.fillRect(0, 6, lineX - 2, H - 12);
   }
 }
+
+
+// High-contrast lane: dark background, bright notes, beat numbers.
+const CL = {
+  bg: '#0d110f',
+  lane: '#161d19',
+  beat: 'rgba(255,255,255,0.14)',
+  bar: 'rgba(255,255,255,0.45)',
+  unit: 'rgba(255,255,255,0.10)',
+  window: 'rgba(95,211,138,0.09)',
+  note: '#ffcf5a',
+  noteEdge: '#7a5a12',
+  text: '#f4efe2',
+  muted: 'rgba(244,239,226,0.55)',
+  report: '#5ad1ff',
+  guide: '#5ad1ff',
+  j: ['#5fe39a', '#6fc3ff', '#ffb23f', '#ff6a55'],
+};
+
+TapeView.prototype.drawClear = function drawClear(s) {
+  const g = this.g;
+  const W = this.w, H = this.h;
+  const pxPerUnit = Math.max(16, Math.min(44, W / 22)) * this.zoom;
+  const pps = pxPerUnit / s.unit;
+  const lineX = Math.round(W * (s.lineFrac ?? 0.28));
+  const X = (t) => lineX + (t - s.now) * pps;
+  const tMin = s.now - lineX / pps;
+  const tMax = s.now + (W - lineX) / pps;
+  const top = 18, bottom = H - 20;
+  const midY = (top + bottom) / 2;
+  const noteH = Math.max(12, Math.min(26, (bottom - top) * 0.42));
+
+  g.fillStyle = CL.bg;
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = CL.lane;
+  g.fillRect(0, top, W, bottom - top);
+
+  for (const [a, b] of s.windows || []) {
+    if (b < tMin || a > tMax) continue;
+    g.fillStyle = CL.window;
+    g.fillRect(X(a), top, X(b) - X(a), bottom - top);
+  }
+
+  // Grid with beat numbers ("1 2 3 4") under the lane.
+  const grid = (s.grid || []).slice().sort((a, b) => a.t - b.t);
+  let beatNo = 0;
+  g.textAlign = 'center';
+  for (const l of grid) {
+    if (l.kind === 'bar') beatNo = 1;
+    else if (l.kind === 'beat') beatNo++;
+    if (l.t < tMin - 0.01 || l.t > tMax) continue;
+    const x = Math.round(X(l.t)) + 0.5;
+    if (l.kind === 'unit') {
+      g.strokeStyle = CL.unit;
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(x, bottom - 6);
+      g.lineTo(x, bottom);
+      g.stroke();
+      continue;
+    }
+    g.strokeStyle = l.kind === 'bar' ? CL.bar : CL.beat;
+    g.lineWidth = l.kind === 'bar' ? 2 : 1;
+    g.beginPath();
+    g.moveTo(x, top);
+    g.lineTo(x, bottom);
+    g.stroke();
+    if (beatNo) {
+      g.fillStyle = l.kind === 'bar' ? CL.text : CL.muted;
+      g.font = `${l.kind === 'bar' ? 800 : 600} 11px ui-monospace, Menlo, monospace`;
+      g.fillText(String(beatNo), x, H - 6);
+    }
+    if (l.label) {
+      g.fillStyle = CL.muted;
+      g.font = '700 10px system-ui, sans-serif';
+      g.textAlign = 'left';
+      g.fillText(tr('BAR {n}', { n: l.label }), x + 4, 12);
+      g.textAlign = 'center';
+    }
+  }
+
+  // Incoming report along the top edge.
+  g.fillStyle = CL.report;
+  for (const r of s.report || []) {
+    if (r.t1 < tMin || r.t0 > tMax) continue;
+    g.fillRect(X(r.t0), top + 2, Math.max(2, X(r.t1) - X(r.t0)), 3);
+  }
+
+  // Target notes.
+  for (const tg of s.targets || []) {
+    if (tg.t1 < tMin || tg.t0 > tMax) continue;
+    const x0 = X(tg.t0), x1 = X(tg.t1);
+    const w = Math.max(noteH, x1 - x0 - 2);
+    g.fillStyle = CL.note;
+    g.strokeStyle = CL.noteEdge;
+    g.lineWidth = 2;
+    roundRect(g, x0 + 1, midY - noteH / 2, w, noteH, noteH / 2);
+    g.fill();
+    g.stroke();
+  }
+  g.font = '800 13px ui-monospace, Menlo, monospace';
+  g.fillStyle = CL.text;
+  g.textAlign = 'left';
+  for (const tl of s.targetLetters || []) {
+    if (tl.t1 < tMin || tl.t0 > tMax) continue;
+    g.fillText(tl.label, X(tl.t0) + 1, midY - noteH / 2 - 5);
+  }
+
+  // Gap guide.
+  for (const m of s.guide || []) {
+    if (m.kind === 'bad') {
+      if (m.t1 < tMin || m.t0 > tMax) continue;
+      g.fillStyle = 'rgba(255,106,85,0.22)';
+      g.fillRect(X(m.t0), top, X(m.t1) - X(m.t0), bottom - top);
+      continue;
+    }
+    if (m.t < tMin || m.t > tMax) continue;
+    const x = Math.round(X(m.t)) + 0.5;
+    const strong = m.kind === 'letter' || m.kind === 'dah';
+    g.strokeStyle = CL.guide;
+    g.globalAlpha = strong ? 1 : 0.6;
+    g.lineWidth = strong ? 3 : 1.5;
+    g.setLineDash(strong ? [] : [4, 3]);
+    g.beginPath();
+    g.moveTo(x, top);
+    g.lineTo(x, bottom);
+    g.stroke();
+    g.setLineDash([]);
+    g.globalAlpha = 1;
+    g.fillStyle = CL.guide;
+    g.font = '800 10px system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.fillText(tr(m.label), x, strong ? bottom - 4 : top + 12);
+    g.textAlign = 'left';
+  }
+
+  // Keyed signal, drawn inside the notes so the target outline stays visible.
+  const inkH = noteH * 0.55;
+  for (const k of s.keyed || []) {
+    const up = k.up ?? s.now;
+    if (up < tMin || k.down > tMax) continue;
+    g.fillStyle = k.offAir ? 'rgba(244,239,226,0.25)' : CL.j[k.j ?? 1];
+    roundRect(g, X(k.down), midY - inkH / 2, Math.max(3, X(up) - X(k.down)), inkH, inkH / 2);
+    g.fill();
+  }
+
+  // Decoded letters.
+  g.textAlign = 'center';
+  for (const l of s.letters || []) {
+    if (l.end < tMin || l.start > tMax) continue;
+    const x = (X(l.start) + X(l.end)) / 2;
+    g.fillStyle = l.offAir ? CL.muted : CL.j[l.q];
+    g.font = '900 16px ui-monospace, Menlo, monospace';
+    const label = l.offAir ? l.label : `${l.label} ${J_SHAPES[l.q]}`;
+    g.fillText(label, x, midY + noteH / 2 + 15);
+  }
+  g.textAlign = 'left';
+
+  // "Now" line.
+  g.fillStyle = s.keyDown ? 'rgba(95,227,154,0.35)' : 'rgba(255,255,255,0.08)';
+  g.fillRect(lineX - 8, top, 16, bottom - top);
+  g.fillStyle = s.keyDown ? CL.j[0] : CL.text;
+  g.fillRect(lineX - 1.5, 0, 3, H);
+  g.font = '800 9px system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.fillText(tr('NOW'), lineX, 10);
+  g.textAlign = 'left';
+};
 
 export function roundRect(g, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);

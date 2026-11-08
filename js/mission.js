@@ -6,6 +6,8 @@ import { SONGS, Music, keyToneFor, scaleNote, mtof } from './audio.js';
 import { J_POINTS, J_NAMES, J_SHAPES, J_CLASS, J_GARBLED } from './keyer.js';
 import { layoutTokens, unitsOf, orderTokens, describeOrder, UNIT_INFO, ORDER_INFO, pretty, codeOf, wpmFromUnit } from './morse.js';
 import { ADA_LINES } from './missions.js';
+import { t } from './i18n.js';
+const uname = (u) => t(UNIT_INFO[u]?.name || u);
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -140,7 +142,7 @@ export class MissionRun extends Session {
     this.music.start(this.song, { phrase: (k) => this.phrase(k) });
     this.app.map.apply(this.battle.snapshot());
     this.app.map.setFlags(this.objectiveFlags());
-    hud.setMission(this.m.title + (this.mode === 'practice' ? ' · PRACTICE' : '') + (this.guide.easy ? ' · EASY' : ''), this.mode);
+    hud.setMission(t(this.m.title) + (this.m.subtitle ? ' ' + this.m.subtitle : '') + (this.mode === 'practice' ? ' · ' + t('PRACTICE') : '') + (this.guide.easy ? ' · ' + t('EASY') : ''), this.mode);
     hud.setScore(0, 1);
     hud.radio('', '', '');
     hud.ada(this.m.decode ? 'Listen for HQ. Decode it, then relay it.' : 'Here we go — one bar count-in…');
@@ -183,11 +185,11 @@ export class MissionRun extends Session {
       reportTokens = ['AR'];
       P.sugg = { unit: 'AR' };
       P.tokens = ['AR'];
-      text = 'Objective secured. Close the line with AR.';
+      text = t('Objective secured. Close the line with AR.');
     } else if (mode === 'peace') {
       reportTokens = ['P', 'E', 'A', 'C', 'E'];
       P.tokens = reportTokens;
-      text = 'To all stations, both sides: PEACE.';
+      text = t('To all stations, both sides: PEACE.');
     } else {
       const sug = this.battle.suggest(this.known, this.objectives, k);
       P.sugg = sug;
@@ -263,17 +265,17 @@ export class MissionRun extends Session {
       if (b.threatAt(s, s.col) > 0) {
         const e = b.aliveEnemies().find((x) => x.row === s.row && Math.abs(x.col - s.col) <= ENEMY_TYPES[x.k].range);
         const who = e && b.isRevealed(e) ? ENEMY_TYPES[e.k].name : 'Unseen enemy';
-        return `${who} in range of the ${UNIT_INFO[s.t].name}!`;
+        return t('{enemy} in range of the {unit}!', { enemy: t(who), unit: uname(s.t) });
       }
     }
     const seen = b.aliveEnemies().filter((e) => b.isRevealed(e));
     if (seen.length) {
       const e = seen.sort((x, y) => x.col - y.col)[0];
-      return `${ENEMY_TYPES[e.k].name} spotted in zone ${e.col + 1}.`;
+      return t('{enemy} spotted in zone {n}.', { enemy: t(ENEMY_TYPES[e.k].name), n: e.col + 1 });
     }
-    if (b.hiddenEnemies()) return 'Movement in the fog ahead.';
-    if (b.waves.some((w) => !w.done)) return 'Quiet… for now.';
-    return 'The road ahead is clear.';
+    if (b.hiddenEnemies()) return t('Movement in the fog ahead.');
+    if (b.waves.some((w) => !w.done)) return t('Quiet… for now.');
+    return t('The road ahead is clear.');
   }
 
   spawnWatch(k) {
@@ -302,12 +304,12 @@ export class MissionRun extends Session {
       }
       if (e.type === 'out') {
         const s = snap.squads.find((x) => x.id === e.id);
-        if (s) map.bubble(s.id, `${UNIT_INFO[s.t].name} out of action!`, 2600, 'bad');
+        if (s) map.bubble(s.id, t('{unit} out of action!', { unit: uname(s.t) }), 2600, 'bad');
       }
       if (e.type === 'breakthrough') this.app.hud.ada('They broke through the line!');
     }
-    const t = this.audio.ctxNow();
-    if (hits) this.audio.thud(t + 0.05);
+    const at = this.audio.ctxNow();
+    if (hits) this.audio.thud(at + 0.05);
   }
 
   // ---------------- per-frame ----------------
@@ -372,19 +374,19 @@ export class MissionRun extends Session {
     let code = '';
     const sub = this.guide.subtitles;
     if (this.m.decode && this.guide.easy && P.hq) {
-      text = `HQ order: ${describeOrder(P.hq.unit, P.hq.order)}.` + (P.fake ? ' It wobbles off the beat — FAKE! Send something else.' : '');
+      text = t('HQ order: {order}.', { order: describeOrder(P.hq.unit, P.hq.order) }) + (P.fake ? ' ' + t('It wobbles off the beat — FAKE! Send something else.') : '');
       code = pretty(codeOf(P.hq.unit) + ' ' + codeOf(P.hq.order));
     } else if (this.m.decode) {
       text = 'Incoming order… decode it and relay it.';
     } else if (sub === 'full') {
-      text = P.text + (P.sugg ? ` Suggest: ${P.sugg.unit === 'SOS' ? 'SOS' : describeOrder(P.sugg.unit, P.sugg.order)}.` : '');
+      text = P.text + (P.sugg ? ' ' + t('Suggest: {order}.', { order: P.sugg.unit === 'SOS' ? 'SOS' : describeOrder(P.sugg.unit, P.sugg.order) }) : '');
       code = P.reportTokens.length ? pretty(P.reportTokens.map(codeOf).join(' ')) : '';
     } else if (sub === 'partial') {
       text = P.text;
     } else {
-      text = '· · ·  audio only  · · ·';
+      text = '· · ·  ' + t('audio only') + '  · · ·';
     }
-    if (this.mode === 'longwatch') from = `WATCH ${k + 1}`;
+    if (this.mode === 'longwatch') from = t('WATCH {n}', { n: k + 1 });
     hud.radio(from, text, code);
     if (this.m.decode) hud.ada('Listen…');
     else if (this.guide.suggest !== 'always') hud.ada('');
@@ -407,9 +409,9 @@ export class MissionRun extends Session {
     if (!P.sugg) return;
     const s = P.sugg;
     const tok = P.tokens.join(' ');
-    const what = s.unit === 'SOS' ? 'call for reinforcements' : describeOrder(s.unit, s.order);
-    const fake = P.fake && this.guide.easy ? "That HQ order was a fake. Send this instead: " : '';
-    this.app.hud.ada(`${fake}${hesitated ? 'Try: ' : ''}${tok} — ${what}.`);
+    const what = s.unit === 'SOS' ? t('call for reinforcements') : describeOrder(s.unit, s.order);
+    const fake = P.fake && this.guide.easy ? t('That HQ order was a fake. Send this instead:') + ' ' : '';
+    this.app.hud.ada(`${fake}${hesitated ? t('Try:') + ' ' : ''}${tok} — ${what}.`);
     if (this.guide.lane) P.showTargets = true;
     this.refreshCodecard(s);
   }
@@ -463,7 +465,7 @@ export class MissionRun extends Session {
     const pts = J_POINTS[q] * st.mult;
     st.score += pts;
     hud.setScore(st.score, st.mult);
-    hud.pop(`${J_SHAPES[q]} ${J_NAMES[q]}  ${letter.sym || '?'}${pts ? '  +' + pts : ''}`, J_CLASS[q]);
+    hud.pop(`${J_SHAPES[q]} ${t(J_NAMES[q])}  ${letter.sym || '?'}${pts ? '  +' + pts : ''}`, J_CLASS[q]);
     if (q <= 1 && letter.sym) this.app.unlockCode(letter.sym);
 
     const sym = letter.sym;
@@ -488,9 +490,9 @@ export class MissionRun extends Session {
       if (this.keyer.letterEls.length) this.keyer.finishLetter();
     }
     P.tx.finalized = true;
-    const t = now ?? this.audio.heardNow();
+    const at = now ?? this.audio.heardNow();
     const p = this.phrase(k);
-    if ((t - p.start) / p.bar >= 7) this.resolve(k);
+    if ((at - p.start) / p.bar >= 7) this.resolve(k);
   }
 
   parse(letters) {
@@ -539,7 +541,7 @@ export class MissionRun extends Session {
         st.bonus += bonus;
         st.score += bonus;
         hud.setScore(st.score, st.mult);
-        hud.ada(`AR received. Line closed. +${bonus} bonus.`);
+        hud.ada(t('AR received. Line closed. +{n} bonus.', { n: bonus }));
         this.audio.chime(this.audio.ctxNow(), true);
       } else {
         hud.ada(letters.length ? "That wasn't AR, but HQ got the idea." : 'Line closed without AR. No bonus.');
@@ -555,7 +557,7 @@ export class MissionRun extends Session {
       st.bonus += bonus;
       st.score += bonus;
       hud.setScore(st.score, st.mult);
-      hud.ada(okWord ? 'Message received… on both sides.' : `They heard "${word || '…'}". Close enough — they understood.`);
+      hud.ada(okWord ? 'Message received… on both sides.' : t('They heard "{w}". Close enough — they understood.', { w: word || '…' }));
       this.audio.bell(this.audio.ctxNow());
       this.peaceSent = true;
       this.endMission(k, true);
@@ -616,9 +618,9 @@ export class MissionRun extends Session {
         else { st.relayed++; hud.ada('Good catch — that was a fake!'); }
       } else if (match) {
         st.relayed++;
-        hud.ada(`Relayed correctly. ${pick(['HQ thanks you.', 'Exactly what they sent.', 'Copy that.'])}`);
+        hud.ada(`${t('Relayed correctly.')} ${t(pick(['HQ thanks you.', 'Exactly what they sent.', 'Copy that.']))}`);
       } else {
-        hud.ada(`HQ sent ${P.hq.unit} ${P.hq.order}. You sent ${r.who || '?'} ${r.order || '?'}.`);
+        hud.ada(t('HQ sent {a}. You sent {b}.', { a: `${P.hq.unit} ${P.hq.order}`, b: `${r.who || '?'} ${r.order || '?'}` }));
       }
       this.revealHQ(P);
     }
@@ -645,12 +647,12 @@ export class MissionRun extends Session {
     if (!squads.length) {
       const known = UNIT_INFO[r.who];
       const dead = this.battle.squads.find((s) => s.t === r.who);
-      sayAgain(known ? (dead ? `${known.name} are out of action.` : `No ${known.name} on this map. Say again?`) : `No unit answers to "${r.who}". Say again?`);
+      sayAgain(known ? (dead ? t('{unit} are out of action.', { unit: t(known.name) }) : t('No {unit} on this map. Say again?', { unit: t(known.name) })) : t('No unit answers to "{l}". Say again?', { l: r.who }));
       this.afterResolve(k);
       return;
     }
     if (!r.order || !ORDER_INFO[r.order]) {
-      for (const s of squads) this.app.map.bubble(s.id, r.order ? `${UNIT_INFO[s.t].name}, …${r.order}? Say again?` : `${UNIT_INFO[s.t].name} here… what's the order?`, 2600, 'bad');
+      for (const s of squads) this.app.map.bubble(s.id, r.order ? t('{unit}, …{l}? Say again?', { unit: uname(s.t), l: r.order }) : t("{unit} here… what's the order?", { unit: uname(s.t) }), 2600, 'bad');
       sayAgain('Say again? (no valid order)');
       this.afterResolve(k);
       return;
@@ -668,7 +670,7 @@ export class MissionRun extends Session {
 
     const verb = ORDER_INFO[r.order].verb;
     if (late) {
-      for (const s of squads) map.bubble(s.id, `${UNIT_INFO[s.t].name}… ${verb}?`, 2400, 'bad');
+      for (const s of squads) map.bubble(s.id, t('{unit}… {verb}?', { unit: uname(s.t), verb: t(verb) }), 2400, 'bad');
       const when = this.at(k + 1, 3);
       this.schedule(when, () => {
         if (this.ended) return;
@@ -683,8 +685,8 @@ export class MissionRun extends Session {
 
   revealHQ(P) {
     if (!P.hq) return;
-    const fake = P.fake ? ' — FAKE (sloppy rhythm)' : '';
-    this.app.hud.radio('HQ', `HQ sent: ${P.hq.unit} ${P.hq.order} (${describeOrder(P.hq.unit, P.hq.order)})${fake}`, pretty(codeOf(P.hq.unit) + ' ' + codeOf(P.hq.order)));
+    const fake = P.fake ? ' — ' + t('FAKE (sloppy rhythm)') : '';
+    this.app.hud.radio('HQ', t('HQ sent: {code} ({order})', { code: `${P.hq.unit} ${P.hq.order}`, order: describeOrder(P.hq.unit, P.hq.order) }) + fake, pretty(codeOf(P.hq.unit) + ' ' + codeOf(P.hq.order)));
   }
 
   applyOrder(r, squads, q, wasLate) {
@@ -694,20 +696,20 @@ export class MissionRun extends Session {
     for (const s of squads) {
       const res = this.battle.applyOrder(s, r.order, q);
       all.push(...res.ev);
-      const name = UNIT_INFO[s.t].name;
-      if (n++ < 3) map.bubble(s.id, `${name}${wasLate ? ' (late)' : ''}: ${res.msg}`, 2400, res.ok ? 'good' : 'bad');
+      const name = uname(s.t);
+      if (n++ < 3) map.bubble(s.id, `${name}${wasLate ? ' (' + t('late') + ')' : ''}: ${res.msg}`, 2400, res.ok ? 'good' : 'bad');
     }
     map.apply(this.battle.snapshot(), all);
-    const t = this.audio.ctxNow();
-    if (all.some((e) => e.type === 'shot')) this.audio.thud(t + 0.02);
-    if (all.some((e) => e.type === 'eout')) this.audio.pop(t + 0.25);
-    if (all.some((e) => e.type === 'heal')) this.audio.chime(t, true);
-    if (all.some((e) => e.type === 'status' && e.s === 'smoke')) this.audio.pop(t);
+    const at = this.audio.ctxNow();
+    if (all.some((e) => e.type === 'shot')) this.audio.thud(at + 0.02);
+    if (all.some((e) => e.type === 'eout')) this.audio.pop(at + 0.25);
+    if (all.some((e) => e.type === 'heal')) this.audio.chime(at, true);
+    if (all.some((e) => e.type === 'status' && e.s === 'smoke')) this.audio.pop(at);
   }
 
   badOrder(msg) {
     this.watchStrikes = (this.watchStrikes || 0) + 1;
-    this.app.hud.ada(`${msg || 'Garbled order.'} Strike ${this.watchStrikes} of 3.`);
+    this.app.hud.ada(`${t(msg || 'Garbled order.')} ${t('Strike {n} of 3.', { n: this.watchStrikes })}`);
   }
 
   afterResolve(k) {
@@ -717,7 +719,7 @@ export class MissionRun extends Session {
 
   updateObjectives(phrasesDone) {
     if (this.mode === 'longwatch') {
-      this.app.hud.objectives([{ text: `Watch ${this.stats.phrases} · strikes ${this.watchStrikes || 0}/3`, done: false }]);
+      this.app.hud.objectives([{ text: t('Watch {n} · strikes {s}/3', { n: this.stats.phrases, s: this.watchStrikes || 0 }), done: false }]);
       return null;
     }
     const ev = this.battle.evaluate(this.objectives, { phrasesDone, relayed: this.stats.relayed });
@@ -742,7 +744,7 @@ export class MissionRun extends Session {
         this.app.hud.ada('The guns are quiet. One more transmission, Lieutenant…');
       } else if (this.m.signoff) {
         this.nextMode = 'signoff';
-        this.app.hud.ada(pick(ADA_LINES.win) + ' Now close the line: AR.');
+        this.app.hud.ada(t(pick(ADA_LINES.win)) + ' ' + t('Now close the line: AR.'));
       } else {
         this.app.hud.ada(pick(ADA_LINES.win));
         this.endMission(k, true);

@@ -1,4 +1,5 @@
 // Morse alphabet, prosigns and pattern layout helpers.
+import { t } from './i18n.js';
 
 export const MORSE = {
   A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.', H: '....',
@@ -95,9 +96,13 @@ export function orderTokens(unit, order) {
 }
 
 export function describeOrder(unit, order) {
-  const who = unit === 'CQ' ? 'All units' : UNIT_INFO[unit]?.name || unit;
-  const what = ORDER_INFO[order]?.verb || order;
-  return `${who}, ${what}`;
+  const who = unit === 'CQ' ? t('All units') : t(UNIT_INFO[unit]?.name || unit);
+  const what = t(ORDER_INFO[order]?.verb || order);
+  return t('{who}, {what}', { who, what });
+}
+
+export function unitName(u) {
+  return t(UNIT_INFO[u]?.name || u);
 }
 
 // WPM by the PARIS standard: WPM = 1.2 / unit (seconds)

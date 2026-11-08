@@ -7,6 +7,9 @@ import { DrillRun, FreeKeyRun, CalibRun, tokenName } from './drill.js';
 import { MISSIONS, ACTS, PADDLE_LESSONS, CODEBOOK, ENDING, ADA_LINES } from './missions.js';
 import { MORSE, PROSIGNS, pretty, codeOf, layoutTokens, UNIT_INFO, ORDER_INFO, SPECIAL_INFO } from './morse.js';
 import { J_SHAPES, J_NAMES } from './keyer.js';
+import { t, setLang, getLang, LANGS } from './i18n.js';
+import { iconSvg } from './icons.js';
+import { ENEMY_TYPES } from './battle.js';
 
 // ---------------------------------------------------------------- helpers
 const $ = (s) => document.querySelector(s);
@@ -17,11 +20,11 @@ function h(tag, attrs = {}, ...kids) {
     if (k === 'class') el.className = v;
     else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
     else if (k === 'html') el.innerHTML = v;
-    else el.setAttribute(k, v === true ? '' : v);
+    else el.setAttribute(k, v === true ? '' : k === 'placeholder' || k === 'aria-label' ? t(v) : v);
   }
   for (const c of kids.flat()) {
     if (c === null || c === undefined || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    el.append(c instanceof Node ? c : document.createTextNode(typeof c === 'string' ? t(c) : String(c)));
   }
   return el;
 }
@@ -34,6 +37,7 @@ const DEFAULT_SETTINGS = {
   difficulty: 'normal', playMode: 'standard', speed: 1, inputOffset: 0, visualOffset: 0,
   visualOnly: false, haptics: true, gapGuide: true, ghost: 'ahead', showCodes: 'auto', noFail: false,
   music: 0.8, tone: 0.8, sfx: 0.8, input: 'straight',
+  lang: null, tapeStyle: 'classic', tapeSize: 'normal',
 };
 function loadSave() {
   let s = null;
@@ -100,8 +104,8 @@ function titleScreen() {
   const done = MISSIONS.filter((m) => cleared(m.id)).length;
   const next = MISSIONS.find((m) => !cleared(m.id) && missionUnlocked(m));
   nav.replaceChildren(
-    h('button', { class: 'btn primary big', onclick: () => (next ? briefing(next) : campaignScreen()) }, done ? (next ? `Continue — ${next.n}. ${next.title}` : 'Campaign') : 'Start Campaign'),
-    h('button', { class: 'btn', onclick: campaignScreen }, `Campaign  ·  ${done}/${MISSIONS.length}`),
+    h('button', { class: 'btn primary big', onclick: () => (next ? briefing(next) : campaignScreen()) }, done ? (next ? t('Continue — {n}. {title}', { n: next.n, title: t(next.title) }) : 'Campaign') : 'Start Campaign'),
+    h('button', { class: 'btn', onclick: campaignScreen }, `${t('Campaign')}  ·  ${done}/${MISSIONS.length}`),
     h('div', { class: 'row2' },
       h('button', { class: 'btn', onclick: practiceScreen }, 'Practice'),
       h('button', { class: 'btn', onclick: freeKeyScreen }, 'Free Key')),
@@ -131,7 +135,7 @@ function campaignScreen() {
   for (const act of ACTS) {
     const ms = MISSIONS.filter((m) => m.act === act.n);
     kids.push(h('section', { class: 'act' },
-      h('h2', {}, act.n <= 4 ? `Act ${act.n}: ${act.name}` : act.name),
+      h('h2', {}, act.n <= 4 ? t('Act {n}: {name}', { n: act.n, name: t(act.name) }) : act.name),
       h('p', { class: 'muted' }, act.blurb),
       h('div', { class: 'mission-grid' }, ms.map((m) => missionCard(m)))));
   }
@@ -177,13 +181,14 @@ function briefing(m) {
   const startMission = () => runMission(m, { encore: !!app.encoreMode });
   menu(
     h('div', { class: 'brief-head' },
-      h('div', { class: 'muted' }, m.act <= 4 ? `Act ${m.act} · ${actName} · Mission ${m.n}` : `Finale · Mission ${m.n}`),
+      h('div', { class: 'muted' }, m.act <= 4 ? t('Act {a} · {name} · Mission {n}', { a: m.act, name: t(actName), n: m.n }) : t('Finale · Mission {n}', { n: m.n })),
       h('h1', {}, m.title),
-      h('div', { class: 'muted small' }, `${m.bpm} BPM · ${m.unitDiv === 4 ? '16th' : '8th'}-note units · ≈${wpm} WPM${m.decode ? ' · Decode mission' : ''}${app.encoreMode ? ' · ENCORE' : ''}`)),
+      h('div', { class: 'muted small' }, t('{bpm} BPM · {note}-note units · ≈{wpm} WPM', { bpm: m.bpm, note: t(m.unitDiv === 4 ? '16th' : '8th'), wpm }) + (m.decode ? ' · ' + t('Decode mission') : '') + (app.encoreMode ? ' · ' + t('ENCORE') : ''))),
     h('div', { class: 'dialogue' },
       h('div', { class: 'ada-face big' }, 'AV'),
       h('div', {}, m.briefing.map((l) => h('p', {}, l)))),
     letters.length ? h('div', { class: 'letters' }, letters) : null,
+    unitPanel(m),
     h('div', { class: 'obj-box' }, h('b', {}, 'Objective'), h('ul', {}, objectives)),
     h('div', { class: 'brief-actions' },
       hasDrill && !pr?.cleared ? h('button', { class: 'btn primary big', onclick: () => runDrill(m, startMission) }, 'Drill (30 s), then mission') : null,
@@ -196,6 +201,81 @@ function briefing(m) {
       ? 'Iambic paddles: left (Z / ← / left button) = dit, right (X / → / right button) = dah.'
       : 'Key: Space or any key, mouse button, or tap/hold the big KEY button. Esc pauses.'),
   );
+}
+
+// ---------------------------------------------------------------- unit cards
+const ENEMY_HELP = {
+  rifle: 'Advances and shoots at close range',
+  armor: 'Tough; moves every other phrase',
+  gun: 'Static; hits 3 zones down its lane',
+  post: 'Static; hits the next zone',
+};
+
+function unitPanel(m) {
+  const sq = [...new Set((m.setup?.squads || []).map((s) => s.t))];
+  const en = [...new Set((m.setup?.enemies || []).concat(...(m.setup?.waves || []).map((w) => w.enemies)).map((e) => e.k))];
+  if (!sq.length) return null;
+  return h('div', { class: 'unit-panel' },
+    h('div', { class: 'up-group' }, h('div', { class: 'up-h' }, 'Your units'),
+      h('div', { class: 'up-row' }, sq.map((u) => h('div', { class: 'unit-card' },
+        h('div', { class: 'uc-ico', html: iconSvg(u) }),
+        h('div', { class: 'uc-txt' }, h('b', {}, `${u} · ${t(UNIT_INFO[u].name)}`), h('span', { class: 'uc-code' }, pretty(codeOf(u))), h('small', {}, UNIT_INFO[u].role)))))),
+    en.length ? h('div', { class: 'up-group' }, h('div', { class: 'up-h' }, 'Enemy'),
+      h('div', { class: 'up-row' }, en.map((k) => h('div', { class: 'unit-card enemy' },
+        h('div', { class: 'uc-ico', html: iconSvg(k) }),
+        h('div', { class: 'uc-txt' }, h('b', {}, ENEMY_TYPES[k].name), h('small', {}, ENEMY_HELP[k])))))) : null);
+}
+
+function applyTapeSettings() {
+  app.tape.style = app.settings.tapeStyle === 'clear' ? 'clear' : 'classic';
+  app.tape.zoom = app.settings.tapeSize === 'large' ? 1.35 : 1;
+  $('#scr-game').classList.toggle('tape-large', app.settings.tapeSize === 'large');
+}
+
+// A small animated sample of the chosen tape style inside Settings.
+function tapePreview() {
+  const cv = h('canvas', { class: 'tape-preview' });
+  const view = new TapeView(cv);
+  let raf = 0;
+  const t0 = performance.now() / 1000;
+  const unit = 0.18;
+  const lay = layoutTokens(['T', 'G', 'K']);
+  const loop = 40 * unit;
+  const draw = () => {
+    if (!cv.isConnected) return cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(draw);
+    view.style = app.settings.tapeStyle;
+    view.zoom = app.settings.tapeSize === 'large' ? 1.35 : 1;
+    const now = performance.now() / 1000 - t0;
+    const start = Math.floor(now / loop) * loop + 8 * unit;
+    const grid = [];
+    for (let u = Math.floor((now - 30 * unit) / unit); u < (now + 40 * unit) / unit; u++) {
+      grid.push({ t: u * unit, kind: u % 8 === 0 ? 'bar' : u % 2 === 0 ? 'beat' : 'unit', label: u % 8 === 0 ? String((((u / 8) % 8) + 8) % 8 + 1) : '' });
+    }
+    const targets = [];
+    const keyed = [];
+    for (const b of [start - loop, start, start + loop]) {
+      for (const e of lay.els) {
+        const a = b + e.start * unit, z = a + e.len * unit;
+        targets.push({ t0: a, t1: z });
+        if (a < now) keyed.push({ down: a, up: Math.min(z, now), j: 0 });
+      }
+    }
+    const tl = [];
+    for (const b of [start - loop, start, start + loop]) for (const l of lay.letters) tl.push({ t0: b + l.start * unit, t1: b + l.end * unit, label: l.token });
+    view.draw({ now, unit, grid, windows: [[start - unit, start + (lay.total + 1) * unit]], targets, targetLetters: tl,
+      keyed, letters: [], report: [], keyDown: keyed.some((k) => k.up >= now - 0.001) });
+  };
+  requestAnimationFrame(() => { view.resize(); draw(); });
+  return cv;
+}
+
+function applyStatic() {
+  for (const el of document.querySelectorAll('[data-i18n]')) {
+    if (!el.dataset.en) el.dataset.en = el.textContent;
+    el.textContent = t(el.dataset.en);
+  }
+  document.title = t('Dit-Dah Command');
 }
 
 // ---------------------------------------------------------------- session control
@@ -214,6 +294,7 @@ async function startSession(sess, layout) {
   show('scr-game');
   setLayout(layout);
   hideOverlay();
+  applyTapeSettings();
   app.tape.resize();
   app.map.resize();
   app.map.snap = null;
@@ -244,7 +325,7 @@ function runMission(m, opts = {}) {
 
 function runDrill(m, then) {
   const sess = new DrillRun(app, {
-    title: `Drill — ${m.newLetters.join(', ')}`,
+    title: t('Drill — {l}', { l: m.newLetters.join(', ') }),
     items: m.drill, bpm: Math.min(m.bpm, 120), unitDiv: m.unitDiv, iambic: useIambic(), timeLimit: 32,
   });
   sess.then = then;
@@ -283,8 +364,8 @@ function resultsDrill(r, passed, back, opts = {}) {
   menu(
     h('h1', {}, opts.title || (passed ? 'Lesson passed' : 'Not yet')),
     h('p', { class: 'big-num' }, `${r.correct} / ${r.total}`),
-    h('ul', { class: 'drill-list' }, r.results.map((x) => h('li', { class: x.ok ? 'ok' : 'bad' }, `${x.ok ? '✓' : '✗'} ${x.want}`, x.ok ? h('span', { class: 'muted' }, ` ${J_NAMES[x.q]}`) : h('span', { class: 'muted' }, ` heard "${x.got || '…'}"`)))),
-    opts.title ? h('p', { class: 'muted' }, `Signal accuracy ${pct(r.accuracy)} · ${r.wpm.toFixed(1)} WPM`) : h('p', { class: 'muted' }, 'Pass mark: 60% correct letters.'),
+    h('ul', { class: 'drill-list' }, r.results.map((x) => h('li', { class: x.ok ? 'ok' : 'bad' }, `${x.ok ? '✓' : '✗'} ${x.want}`, x.ok ? h('span', { class: 'muted' }, ' ' + t(J_NAMES[x.q])) : h('span', { class: 'muted' }, ' ' + t('heard "{w}"', { w: x.got || '…' }))))),
+    opts.title ? h('p', { class: 'muted' }, t('Signal accuracy {p} · {w} WPM', { p: pct(r.accuracy), w: r.wpm.toFixed(1) })) : h('p', { class: 'muted' }, 'Pass mark: 60% correct letters.'),
     h('div', { class: 'brief-actions' },
       opts.again ? h('button', { class: 'btn primary', onclick: opts.again }, 'Again') : null,
       backBtn(back, opts.back || '← Paddle School')),
@@ -314,7 +395,7 @@ function resultsScreen(r) {
   const lines = r.success ? ADA_LINES.win : ADA_LINES.lose;
   menu(
     h('div', { class: 'results' },
-      h('div', { class: 'muted' }, `Mission ${m.n} · ${m.title}${r.mode === 'practice' ? ' · Practice (not saved)' : ''}${r.encore ? ' · Encore' : ''}${r.iambic ? ' · Paddles' : ''}`),
+      h('div', { class: 'muted' }, t('Mission {n}', { n: m.n }) + ' · ' + t(m.title) + (r.mode === 'practice' ? ' · ' + t('Practice (not saved)') : '') + (r.encore ? ' · ' + t('Encore') : '') + (r.iambic ? ' · ' + t('Paddles') : '')),
       h('h1', {}, r.success ? 'Mission complete' : 'Mission failed'),
       r.success ? null : h('p', { class: 'bad' }, r.reason),
       h('div', { class: 'rank-big rank-' + r.rank }, r.rank),
@@ -325,11 +406,11 @@ function resultsScreen(r) {
         stat('Best combo', r.maxCombo),
         stat('Keying speed', `${r.wpm.toFixed(1)} WPM`),
         stat(m.decode ? 'Relayed' : 'Units saved', m.decode ? r.relayed : `${r.alive}/${r.total}`)),
-      h('div', { class: 'counts' }, r.counts.map((c, i) => h('span', { class: 'cnt j' + i }, `${J_SHAPES[i]} ${J_NAMES[i]} ${c}`))),
-      r.bonus ? h('p', {}, `Bonus: +${r.bonus}`) : null,
+      h('div', { class: 'counts' }, r.counts.map((c, i) => h('span', { class: 'cnt j' + i }, `${J_SHAPES[i]} ${t(J_NAMES[i])} ${c}`))),
+      r.bonus ? h('p', {}, t('Bonus: +{n}', { n: r.bonus })) : null,
       h('div', { class: 'dialogue small' }, h('div', { class: 'ada-face' }, 'AV'), h('p', {}, pick(lines))),
       h('div', { class: 'brief-actions' },
-        r.success && r.mode !== 'practice' && next && missionUnlocked(next) ? h('button', { class: 'btn primary big', onclick: () => briefing(next) }, `Next: ${next.title}`) : null,
+        r.success && r.mode !== 'practice' && next && missionUnlocked(next) ? h('button', { class: 'btn primary big', onclick: () => briefing(next) }, t('Next: {title}', { title: t(next.title) })) : null,
         h('button', { class: 'btn' + (r.success ? '' : ' primary big'), onclick: () => runMission(m, { encore: r.encore, mode: r.mode === 'practice' ? 'practice' : undefined }) }, 'Retry'),
         r.mode === 'practice' ? backBtn(practiceScreen, '← Practice') : backBtn(campaignScreen, '← Campaign'))),
   );
@@ -407,7 +488,7 @@ function startPracticeDrill() {
   persist();
   const what = cfg.kind === 'orders' ? 'orders' : cfg.kind === 'groups' ? 'letter groups' : 'letters';
   const sess = new DrillRun(app, {
-    title: `Practice — ${what}${cfg.count ? '' : ' (endless)'}`,
+    title: `${t('Practice')} — ${t(what)}${cfg.count ? '' : ' (' + t('endless') + ')'}`,
     items: practiceItems(cfg), bpm: cfg.bpm, unitDiv: cfg.div, iambic: useIambic(), practice: true,
   });
   startSession(sess, 'drill');
@@ -499,7 +580,7 @@ function startPaddle(L) {
     const m = MISSIONS.find((x) => x.n === L.mission);
     return runMission(m, { mode: 'paddle', iambic: true });
   }
-  const sess = new DrillRun(app, { title: `Paddle School ${L.n}: ${L.title}`, items: L.items, bpm: L.bpm, unitDiv: L.unitDiv, iambic: true, paddle: L.id });
+  const sess = new DrillRun(app, { title: t('Paddle School {n}: {title}', { n: L.n, title: t(L.title) }), items: L.items, bpm: L.bpm, unitDiv: L.unitDiv, iambic: true, paddle: L.id });
   startSession(sess, 'drill');
 }
 
@@ -529,7 +610,7 @@ function longWatchScreen() {
   menu(
     h('h1', {}, 'Long Watch'),
     h('p', {}, 'An endless night shift. Reports keep coming, the tempo rises every phrase, and three garbled (or silent) orders end the run.'),
-    h('p', { class: 'muted' }, `Best: ${lw.phrases || 0} phrases · ${lw.best || 0} points`),
+    h('p', { class: 'muted' }, t('Best: {p} phrases · {s} points', { p: lw.phrases || 0, s: lw.best || 0 })),
     h('div', { class: 'brief-actions' },
       h('button', { class: 'btn primary big', onclick: startLongWatch }, 'Start the watch'),
       backBtn()),
@@ -553,7 +634,7 @@ function longWatchDone(r) {
   persist();
   menu(
     h('h1', {}, 'Watch relieved'),
-    h('p', { class: 'big-num' }, `${r.phrases} phrases`),
+    h('p', { class: 'big-num' }, t('{n} phrases', { n: r.phrases })),
     newBest ? h('p', { class: 'good' }, 'New personal best!') : null,
     h('div', { class: 'stat-grid' }, stat('Score', r.score.toLocaleString()), stat('Signal', pct(r.accuracy)), stat('Best combo', r.maxCombo)),
     h('div', { class: 'brief-actions' }, h('button', { class: 'btn primary', onclick: startLongWatch }, 'Again'), backBtn()),
@@ -580,7 +661,7 @@ function dailyMission() {
   if (!enemies.length) enemies.push({ k: 'rifle', row: 1, col: 5 });
   const bpm = 100 + Math.floor(r() * 5) * 8;
   return {
-    n: 0, act: 3, id: 'daily-' + key, title: `Daily Dispatch ${key}`, song: ['front', 'night', 'silence'][Math.floor(r() * 3)], bpm, unitDiv: 2,
+    n: 0, act: 3, id: 'daily-' + key, title: 'Daily Dispatch', subtitle: key, song: ['front', 'night', 'silence'][Math.floor(r() * 3)], bpm, unitDiv: 2,
     decode: true, spoof: r() < 0.5 ? [2] : [], known: ALL_KNOWN, newLetters: [],
     setup: { fog: true, squads, enemies }, objectives: [{ type: 'relay', count: 4, text: "Relay today's orders" }], maxPhrases: 5, briefing: [],
   };
@@ -592,8 +673,8 @@ function dailyScreen() {
   const best = app.save.daily[key];
   menu(
     h('h1', {}, 'Daily Dispatch'),
-    h('p', {}, `A new set of HQ orders every day (${key}). Decode each one by ear and relay it. One might be a fake.`),
-    h('p', { class: 'muted' }, best ? `Today's best: ${best.score.toLocaleString()} (${best.relayed}/4 relayed)` : 'Not attempted today.'),
+    h('p', {}, t('A new set of HQ orders every day ({d}). Decode each one by ear and relay it. One might be a fake.', { d: key })),
+    h('p', { class: 'muted' }, best ? t("Today's best: {s} ({r}/4 relayed)", { s: best.score.toLocaleString(), r: best.relayed }) : 'Not attempted today.'),
     h('p', { class: 'muted small' }, 'Scores are kept on this device only.'),
     h('div', { class: 'brief-actions' }, h('button', { class: 'btn primary big', onclick: () => runMission(dailyMission(), { mode: 'daily' }) }, 'Open the dispatch'), backBtn()),
   );
@@ -618,7 +699,7 @@ function freeKeyScreen() {
   const panel = $('#free-panel');
   const target = h('input', { type: 'text', class: 'free-target', placeholder: 'Practise a word… e.g. SOS', maxlength: 24, autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false' });
   const targetCode = h('div', { class: 'code free-code' });
-  const wpmLabel = h('span', {}, `${sess.wpm} WPM`);
+  const wpmLabel = h('span', {}, `${sess.cfg.wpm} WPM`);
   const updateTarget = () => {
     const w = target.value.toUpperCase().replace(/[^A-Z0-9?.,/ ]/g, '');
     targetCode.textContent = w.split('').map((c) => (c === ' ' ? ' / ' : pretty(MORSE[c] || ''))).join('  ');
@@ -629,14 +710,14 @@ function freeKeyScreen() {
   target.addEventListener('keyup', (e) => e.stopPropagation());
   panel.replaceChildren(
     h('div', { class: 'free-out', id: 'free-out' }, h('span', { class: 'muted' }, 'Key anything — it decodes live.')),
-    h('div', { class: 'free-row' }, target, h('button', { class: 'btn small', onclick: () => sess.clear() }, 'Clear')),
+    h('div', { class: 'free-row' }, target, h('button', { class: 'btn small', onclick: () => sess.clear() }, 'Clear text')),
     targetCode,
     h('div', { class: 'free-row' },
-      h('label', {}, 'Speed ', h('input', { type: 'range', min: 5, max: 20, step: 1, value: sess.wpm, oninput: (e) => { sess.setWpm(+e.target.value); wpmLabel.textContent = `${sess.wpm} WPM`; app.save.freeWpm = sess.wpm; persist(); } }), wpmLabel),
+      h('label', {}, t('Speed') + ' ', h('input', { type: 'range', min: 5, max: 20, step: 1, value: sess.cfg.wpm, oninput: (e) => { sess.setWpm(+e.target.value); wpmLabel.textContent = `${sess.wpm} WPM`; app.save.freeWpm = sess.wpm; persist(); } }), wpmLabel),
       h('label', { class: 'toggle' }, h('input', { type: 'checkbox', onchange: (e) => sess.setMetronome(e.target.checked) }), h('span', {}, 'Metronome + judging'))),
     h('details', { class: 'chart' }, h('summary', {}, 'Alphabet chart'), alphabetChart()),
   );
-  $('#hud-mission').textContent = 'Free Key';
+  $('#hud-mission').textContent = t('Free Key');
 }
 
 function alphabetChart() {
@@ -652,10 +733,10 @@ function codebookScreen() {
   const got = CODEBOOK.filter((c) => have.has(c.key)).length;
   menu(
     h('h1', {}, 'Codebook'),
-    h('p', { class: 'muted' }, `${got} / ${CODEBOOK.length} entries · Facts unlock as you key letters cleanly and clear missions.`),
+    h('p', { class: 'muted' }, t('{a} / {b} entries · Facts unlock as you key letters cleanly and clear missions.', { a: got, b: CODEBOOK.length })),
     h('div', { class: 'codebook' }, CODEBOOK.map((c) => have.has(c.key)
       ? h('div', { class: 'cb-card' }, h('h3', {}, c.title), h('p', {}, c.text))
-      : h('div', { class: 'cb-card locked' }, h('h3', {}, '???'), h('p', { class: 'muted' }, c.mission ? `Clear mission ${c.mission}` : 'Key this cleanly to unlock')))),
+      : h('div', { class: 'cb-card locked' }, h('h3', {}, '???'), h('p', { class: 'muted' }, c.mission ? t('Clear mission {n}', { n: c.mission }) : 'Key this cleanly to unlock')))),
     h('h2', {}, 'Alphabet'),
     h('p', { class: 'muted small' }, 'Tap any letter to hear it. Highlighted letters are ones you have keyed cleanly.'),
     alphabetChart(),
@@ -677,6 +758,8 @@ function settingsScreen(back) {
   const row = (label, ctrl, help) => h('div', { class: 'set-row' }, h('label', {}, h('span', { class: 'set-l' }, label), help ? h('span', { class: 'muted small' }, help) : null), ctrl);
   menu(
     h('h1', {}, 'Settings'),
+    row('Language / 언어', h('select', { onchange: (e) => { S.lang = e.target.value; persist(); setLang(S.lang); applyStatic(); settingsScreen(back); } },
+      LANGS.map(([v, l]) => h('option', { value: v, selected: getLang() === v }, l)))),
     h('h2', {}, 'Play'),
     row('Judgement windows', select('difficulty', [['easy', 'Easy — wider timing, shows all hints'], ['normal', 'Normal'], ['hard', 'Hard (−20%)']])),
     row('Mode', select('playMode', [['standard', 'Standard'], ['copilot', 'Copilot — order chosen for you'], ['strategist', 'Strategist — wide windows, harder enemy']])),
@@ -686,6 +769,10 @@ function settingsScreen(back) {
     row('Show codes on the order card', select('showCodes', [['auto', 'Until Act 4'], ['always', 'Always']])),
     row('No fail', check('noFail'), 'Units cannot be knocked out (rank capped at C)'),
     iambicUnlocked() ? row('Input', select('input', [['straight', 'Straight key (one button)'], ['iambic', 'Iambic paddles (two buttons)']])) : row('Input', h('span', { class: 'muted' }, 'Straight key · iambic unlocks in Paddle School')),
+    h('h2', {}, 'Tape'),
+    row('Tape style', select('tapeStyle', [['classic', 'Classic ticker tape'], ['clear', 'Clear — high contrast with beat numbers']])),
+    row('Tape size', select('tapeSize', [['normal', 'Normal'], ['large', 'Large — taller and zoomed in']])),
+    tapePreview(),
     h('h2', {}, 'Timing'),
     row('Input offset', range('inputOffset', -200, 200, 1, (v) => `${v} ms`), 'Positive if you tend to press late'),
     row('Visual offset', range('visualOffset', -150, 150, 1, (v) => `${v} ms`), 'Shift the tape if it looks early/late'),
@@ -698,10 +785,13 @@ function settingsScreen(back) {
     row('Haptic beat', check('haptics'), 'Vibrates on the beat while transmitting (Android)'),
     h('h2', {}, 'Data'),
     h('button', { class: 'btn danger', onclick: () => {
-      if (confirm('Erase all progress and settings on this device?')) {
+      if (confirm(t('Erase all progress and settings on this device?'))) {
         try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+        const lang = app.settings.lang;
         app.save = loadSave();
         app.settings = app.save.settings;
+        app.settings.lang = lang;
+        persist();
         titleScreen();
       }
     } }, 'Reset progress'),
@@ -724,7 +814,7 @@ function calibrateScreen(back) {
     app.audio.sync(true);
     const sess = new CalibRun(app, {
       onBeat: (ph) => { dot.style.opacity = String(Math.max(0.15, 1 - ph * 2.5)); },
-      onProgress: (b, n, taps) => { status.textContent = `Click ${b} / ${n} · ${taps} taps counted`; },
+      onProgress: (b, n, taps) => { status.textContent = t('Click {b} / {n} · {c} taps counted', { b, n, c: taps }); },
       onDone: (med, spread, n) => {
         app.session = null;
         if (med === null || n < 6) {
@@ -733,8 +823,8 @@ function calibrateScreen(back) {
         }
         const newOff = Math.round(Math.max(-200, Math.min(200, med)));
         result.replaceChildren(
-          h('p', {}, `You tap ${Math.abs(Math.round(med))} ms ${med >= 0 ? 'after' : 'before'} the click (spread ±${Math.round((spread || 0) / 2)} ms).`),
-          h('p', { class: 'muted' }, `Suggested input offset: ${newOff} ms (current ${app.settings.inputOffset} ms).`),
+          h('p', {}, t(med >= 0 ? 'You tap {ms} ms after the click (spread ±{s} ms).' : 'You tap {ms} ms before the click (spread ±{s} ms).', { ms: Math.abs(Math.round(med)), s: Math.round((spread || 0) / 2) })),
+          h('p', { class: 'muted' }, t('Suggested input offset: {a} ms (current {b} ms).', { a: newOff, b: app.settings.inputOffset })),
           h('div', { class: 'brief-actions' },
             h('button', { class: 'btn primary', onclick: () => { app.settings.inputOffset = newOff; app.save.calibrated = true; persist(); back(); } }, 'Use it'),
             h('button', { class: 'btn', onclick: start }, 'Again'),
@@ -810,13 +900,13 @@ function pauseGame() {
 // ---------------------------------------------------------------- HUD
 const hud = {
   setMission(title) {
-    $('#hud-mission').textContent = title;
+    $('#hud-mission').textContent = t(title);
   },
   phase(bp, mode) {
     const cur = $('#phase-cursor');
     const label = $('#phase-count');
     if (bp < 0) {
-      label.textContent = mode > 0 ? `COUNT-IN ${mode}` : '';
+      label.textContent = mode > 0 ? t('COUNT-IN {n}', { n: mode }) : '';
       label.classList.remove('hidden');
       cur.style.transform = 'translateX(0)';
       setSeg(null);
@@ -833,11 +923,12 @@ const hud = {
     $('#hud-mult').classList.toggle('hot', mult > 1);
   },
   radio(from, text, code) {
-    $('#radio-from').textContent = from || 'RADIO';
-    $('#radio-text').textContent = text || '';
+    $('#radio-from').textContent = t(from || 'RADIO');
+    $('#radio-text').textContent = t(text || '');
     $('#radio-code').textContent = code || '';
   },
   ada(text) {
+    text = t(text || '');
     const el = $('#ada-text');
     if (el.textContent === text) return;
     el.textContent = text || '';
@@ -849,9 +940,9 @@ const hud = {
     $('#hud-objs').replaceChildren(...list.map((o) => h('li', { class: o.done ? 'done' : '' }, (o.done ? '✓ ' : '○ ') + o.text)));
   },
   codecard({ known, units, showCodes, highlight }) {
-    const chip = (l, name, on) => h('div', { class: 'cc' + (on ? ' on' : '') }, h('b', {}, l), showCodes ? h('span', { class: 'cc-code' }, pretty(codeOf(l))) : null, h('small', {}, name));
+    const chip = (l, name, on, ico) => h('div', { class: 'cc' + (on ? ' on' : '') }, h('b', {}, ico ? h('span', { class: 'cc-ico', html: iconSvg(l) }) : null, l), showCodes ? h('span', { class: 'cc-code' }, pretty(codeOf(l))) : null, h('small', {}, name));
     const hu = highlight?.unit, ho = highlight?.order;
-    const us = units.filter((u) => known.has(u)).map((u) => chip(u, UNIT_INFO[u].name, hu === u));
+    const us = units.filter((u) => known.has(u)).map((u) => chip(u, UNIT_INFO[u].name, hu === u, true));
     const os = Object.keys(ORDER_INFO).filter((o) => known.has(o)).map((o) => chip(o, ORDER_INFO[o].name, ho === o));
     const sp = [chip('K', 'over', !!highlight && hu !== 'SOS')];
     if (known.has('Q')) sp.push(h('div', { class: 'cc' + (hu === 'CQ' ? ' on' : '') }, h('b', {}, 'CQ'), showCodes ? h('span', { class: 'cc-code' }, pretty('-.-. --.-')) : null, h('small', {}, 'all units')));
@@ -866,7 +957,7 @@ const hud = {
     const p = $('#pop');
     p.className = 'pop';
     if (!text) { p.textContent = ''; return; }
-    p.textContent = text;
+    p.textContent = t(text);
     void p.offsetWidth;
     p.className = 'pop show ' + (cls || '');
   },
@@ -881,9 +972,9 @@ const hud = {
     const key = `${title}|${phase}|${tokens.join(',')}|${progress}`;
     if (this._drillKey === key) return;
     this._drillKey = key;
-    $('#hud-mission').textContent = title;
+    $('#hud-mission').textContent = t(title);
     const P = $('#drill-panel');
-    P.querySelector('.dp-phase').textContent = phase;
+    P.querySelector('.dp-phase').textContent = t(phase);
     P.querySelector('.dp-phase').classList.toggle('turn', phase === 'YOUR TURN');
     P.querySelector('.dp-letters').textContent = tokens.join(' ');
     P.querySelector('.dp-code').textContent = tokens.map((t) => pretty(codeOf(t))).join('   ');
@@ -1045,11 +1136,19 @@ function onResize() {
 
 // ---------------------------------------------------------------- boot
 function boot() {
+  if (!app.settings.lang) app.settings.lang = (navigator.language || '').toLowerCase().startsWith('ko') ? 'ko' : 'en';
+  setLang(app.settings.lang);
+  applyStatic();
   app.tape = new TapeView($('#tape'));
   app.map = new MapView($('#map'));
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
-  if (window.ResizeObserver) new ResizeObserver(onResize).observe($('#scr-game'));
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(onResize);
+    ro.observe($('#scr-game'));
+    ro.observe($('.map-wrap'));
+    ro.observe($('.tape-wrap'));
+  }
   $('#btn-pause').addEventListener('click', pauseGame);
   $('#title-cal-btn').addEventListener('click', () => calibrateScreen(titleScreen));
   $('#title-cal-skip').addEventListener('click', () => { app.save.calibrated = true; persist(); $('#title-cal').classList.add('hidden'); });

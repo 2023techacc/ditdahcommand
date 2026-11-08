@@ -25,16 +25,16 @@
   <div class="title-inner">
     <div class="ticker" aria-hidden="true"><span>·· &nbsp;——· &nbsp;—·— &nbsp;&nbsp; — &nbsp;···· &nbsp;—·— &nbsp;&nbsp; ··· &nbsp;——— &nbsp;··· &nbsp;&nbsp; ·—·—· &nbsp;&nbsp; ·· &nbsp;——· &nbsp;—·— &nbsp;&nbsp; — &nbsp;···· &nbsp;—·—</span></div>
     <h1 class="logo">DIT-DAH<br><span>COMMAND</span></h1>
-    <p class="tagline">Your orders are tapped in Morse, on the beat.<br>Your units only obey a clean signal.</p>
+    <p class="tagline"><span data-i18n>Your orders are tapped in Morse, on the beat.</span><br><span data-i18n>Your units only obey a clean signal.</span></p>
     <div id="title-cal" class="cal-banner hidden">
-      <span>First time? A 20-second calibration makes timing fair on your device.</span>
+      <span data-i18n>First time? A 20-second calibration makes timing fair on your device.</span>
       <span class="cal-banner-btns">
-        <button class="btn small primary" id="title-cal-btn">Calibrate</button>
-        <button class="btn small ghost" id="title-cal-skip">Skip</button>
+        <button class="btn small primary" id="title-cal-btn" data-i18n>Calibrate</button>
+        <button class="btn small ghost" id="title-cal-skip" data-i18n>Skip</button>
       </span>
     </div>
     <nav id="title-nav" class="title-nav"></nav>
-    <p class="foot">Free web edition · not for sale · all music is synthesised live in your browser.<br>Best with headphones. Space / any key / tap = telegraph key · Esc = pause.</p>
+    <p class="foot"><span data-i18n>Free web edition · not for sale · all music is synthesised live in your browser.</span><br><span data-i18n>Best with headphones. Space / any key / tap = telegraph key · Esc = pause.</span></p>
   </div>
 </section>
 
@@ -46,10 +46,10 @@
     <div class="hud-mid">
       <div id="hud-mission" class="hud-mission"></div>
       <div id="hud-phase" class="phase">
-        <div class="seg" data-seg="report" style="flex:2">REPORT</div>
-        <div class="seg" data-seg="choose" style="flex:1">CHOOSE</div>
-        <div class="seg" data-seg="tx" style="flex:4">TRANSMIT</div>
-        <div class="seg" data-seg="res" style="flex:1">RESOLVE</div>
+        <div class="seg" data-seg="report" style="flex:2" data-i18n>REPORT</div>
+        <div class="seg" data-seg="choose" style="flex:1" data-i18n>CHOOSE</div>
+        <div class="seg" data-seg="tx" style="flex:4" data-i18n>TRANSMIT</div>
+        <div class="seg" data-seg="res" style="flex:1" data-i18n>RESOLVE</div>
         <div id="phase-cursor"></div>
         <div id="phase-count" class="phase-count hidden"></div>
       </div>
@@ -88,7 +88,7 @@
   </div>
 
   <div class="keys">
-    <button class="key key-main" data-key="key" aria-label="Telegraph key"><span>KEY</span><small>tap = dit · hold = dah</small></button>
+    <button class="key key-main" data-key="key" aria-label="Telegraph key"><span>KEY</span><small data-i18n>tap = dit · hold = dah</small></button>
     <button class="key key-dit" data-key="dit" aria-label="Dit paddle"><span>DIT ·</span></button>
     <button class="key key-dah" data-key="dah" aria-label="Dah paddle"><span>DAH —</span></button>
   </div>

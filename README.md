@@ -56,6 +56,13 @@ Tap = dit (·, one unit). Hold three times as long = dah (—). Every order is
   orders in decode missions (and which ones are fakes), plus wider timing windows.
 - **Practice** — drill any letters, letter groups or full orders at any tempo (8, 12, 20 or
   endless), or replay any unlocked mission with no fail. Nothing is scored or saved.
+- **Languages** — English and Korean (한국어). Picked from the browser language on first launch;
+  switch any time in Settings → Language.
+- **Tape styles** — Classic ticker tape, or Clear (dark, high contrast, with beat numbers 1-2-3-4),
+  each in Normal or Large size. Settings shows a live preview.
+- **Unit visuals** — each wooden block has an icon (tank, helmet, binoculars, medic cross, field gun)
+  with its call-sign letter, plus recoil and muzzle flash when firing, shake when hit, dust when
+  moving, sandbags when dug in and a shield ring when holding. Briefings show unit cards for both sides.
 - **Paddle School** — five iambic lessons; finishing it unlocks paddles everywhere.
 - **Extra modes** — Free Key (live decoder / trainer), Long Watch (endless, rising tempo,
   three strikes), Daily Dispatch (seeded daily decode; scores stay on this device), Codebook,
@@ -79,6 +86,8 @@ Progress is saved in the browser (`localStorage`).
 | `js/drill.js` | Drills, Free Key, calibration |
 | `js/tape.js`, `js/mapview.js` | Canvas renderers |
 | `js/main.js` | Screens, saves, settings, input, HUD |
+| `js/i18n.js`, `js/lang-ko.js` | Translation helper and Korean text (English text is the key) |
+| `js/icons.js` | Unit icons shared by the map and the menus |
 
 Not included from the plan: online leaderboards, Versus, the chart editor, the epilogue and
 veteran campaigns (they need a server or a lot more content).

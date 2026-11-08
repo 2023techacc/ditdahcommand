@@ -1,6 +1,7 @@
 // Light tactics layer: a 3-lane, 6-zone tabletop map. Squads only move by
 // order; the enemy acts on the downbeat of every phrase.
 import { UNIT_INFO, ORDER_INFO } from './morse.js';
+import { t } from './i18n.js';
 
 export const ROWS = 3;
 export const COLS = 6;
@@ -215,22 +216,22 @@ export class Battle {
     let msg = '';
     switch (ord) {
       case 'G': {
-        if (sq.digLock) { ok = false; msg = "We're dug in, can't move!"; break; }
+        if (sq.digLock) { ok = false; msg = t("We're dug in, can't move!"); break; }
         const steps = sq.t === 'S' && q === 0 ? 2 : 1;
         let moved = 0;
         for (let i = 0; i < steps; i++) {
           const nc = sq.col + 1;
-          if (nc >= COLS) { if (!moved) { ok = false; msg = 'End of the map, sir!'; } break; }
+          if (nc >= COLS) { if (!moved) { ok = false; msg = t('End of the map, sir!'); } break; }
           const en = this.enemyAt(sq.row, nc);
           if (en) {
             if (st.ram && !moved) {
               const dmg = Math.round(st.ram * boost);
               this.damageEnemy(en, dmg, ev, sq);
-              msg = en.alive ? 'Ramming through!' : 'Rolled right over them!';
+              msg = en.alive ? t('Ramming through!') : t('Rolled right over them!');
               if (!en.alive) { sq.col = nc; moved++; }
             } else if (!moved) {
               ok = false;
-              msg = 'Enemy blocking the way!';
+              msg = t('Enemy blocking the way!');
             }
             break;
           }
@@ -238,7 +239,7 @@ export class Battle {
           moved++;
         }
         if (moved) ev.push({ type: 'move', id: sq.id });
-        if (moved && !msg) msg = q === 0 ? 'Advancing at the double!' : 'Advancing!';
+        if (moved && !msg) msg = q === 0 ? t('Advancing at the double!') : t('Advancing!');
         break;
       }
       case 'H':
@@ -246,48 +247,48 @@ export class Battle {
         if (sq.t === 'M') {
           for (const o of this.aliveSquads()) if (o.col === sq.col && o.row === sq.row && o.hp < 100) o.hp = Math.min(100, o.hp + 10);
         }
-        msg = 'Holding position.';
+        msg = t('Holding position.');
         ev.push({ type: 'status', id: sq.id, s: 'hold' });
         break;
       case 'F': {
         if (sq.t === 'M') {
           const tgt = this.healTarget(sq);
-          if (!tgt) { ok = false; msg = 'Everyone is patched up!'; break; }
+          if (!tgt) { ok = false; msg = t('Everyone is patched up!'); break; }
           const amt = Math.round(st.heal * boost);
           tgt.hp = Math.min(100, tgt.hp + amt);
           ev.push({ type: 'heal', from: sq.id, to: tgt.id, amt });
-          msg = tgt === sq ? 'Patching ourselves up.' : `Treating ${UNIT_INFO[tgt.t].name}.`;
+          msg = tgt === sq ? t('Patching ourselves up.') : t('Treating {unit}.', { unit: t(UNIT_INFO[tgt.t].name) });
           break;
         }
         const tgt = this.fireTarget(sq);
-        if (!tgt) { ok = false; msg = this.fog && this.hiddenEnemies() ? "Can't see a target!" : 'No target in range!'; break; }
+        if (!tgt) { ok = false; msg = this.fog && this.hiddenEnemies() ? t("Can't see a target!") : t('No target in range!'); break; }
         const dmg = Math.round(st.fire * boost);
         ev.push({ type: 'shot', from: sq.id, to: tgt.id, indirect: !!st.indirect });
         this.damageEnemy(tgt, dmg, ev, sq);
-        msg = tgt.alive ? 'Rounds on target!' : 'Target down!';
+        msg = tgt.alive ? t('Rounds on target!') : t('Target down!');
         break;
       }
       case 'R':
-        if (sq.digLock) { ok = false; msg = "We're dug in, can't move!"; break; }
+        if (sq.digLock) { ok = false; msg = t("We're dug in, can't move!"); break; }
         if (sq.col > 0) { sq.col--; ev.push({ type: 'move', id: sq.id }); }
         sq.hp = Math.min(100, sq.hp + (q === 0 ? 20 : 10));
         sq.hold = 0.5;
-        msg = 'Falling back!';
+        msg = t('Falling back!');
         break;
       case 'D':
         sq.dig = q === 0 ? 0.15 : 0.25;
         sq.digLock = 2;
-        msg = 'Digging in!';
+        msg = t('Digging in!');
         ev.push({ type: 'status', id: sq.id, s: 'dig' });
         break;
       case 'C':
         sq.smoke = 1;
-        msg = 'Smoke out!';
+        msg = t('Smoke out!');
         ev.push({ type: 'status', id: sq.id, s: 'smoke' });
         break;
       default:
         ok = false;
-        msg = `${name}... say again?`;
+        msg = t('{unit}... say again?', { unit: t(name) });
     }
     this.updateMarks();
     return { ok, msg, ev };
@@ -470,17 +471,17 @@ export class Battle {
     const status = [];
     for (const o of objs) {
       let done = false;
-      let text = o.text || '';
+      let text = t(o.text || '');
       switch (o.type) {
         case 'reach': {
           if (o.unit === 'ALL') {
             const list = this.squads;
             done = list.every((s) => s.alive && s.col >= o.col);
-            if (list.some((s) => !s.alive)) { failed = true; reason = 'A squad was knocked out.'; }
+            if (list.some((s) => !s.alive)) { failed = true; reason = t('A squad was knocked out.'); }
           } else {
             const s = this.squads.find((x) => x.t === o.unit);
             done = !!(s && s.alive && s.col >= o.col);
-            if (s && !s.alive) { failed = true; reason = `${UNIT_INFO[o.unit].name} were knocked out.`; }
+            if (s && !s.alive) { failed = true; reason = t('{unit} were knocked out.', { unit: t(UNIT_INFO[o.unit].name) }); }
           }
           break;
         }
@@ -488,15 +489,15 @@ export class Battle {
           const s = this.squads.find((x) => x.t === o.unit);
           o._count = o._count || 0;
           done = (o._count >= o.phrases);
-          if (s && !s.alive) { failed = true; reason = `${UNIT_INFO[o.unit].name} were knocked out.`; }
-          text = `${o.text} (${Math.min(o._count, o.phrases)}/${o.phrases})`;
+          if (s && !s.alive) { failed = true; reason = t('{unit} were knocked out.', { unit: t(UNIT_INFO[o.unit].name) }); }
+          text = `${t(o.text)} (${Math.min(o._count, o.phrases)}/${o.phrases})`;
           break;
         }
         case 'destroy': {
           const pending = this.waves.some((w) => !w.done && (!o.kind || w.enemies.some((e) => e.k === o.kind)));
           const left = this.aliveEnemies().filter((e) => !o.kind || e.k === o.kind).length;
           done = !pending && left === 0;
-          text = `${o.text} (${left + (pending ? '+' : '')} left)`;
+          text = `${t(o.text)} (${t('{n} left', { n: left + (pending ? '+' : '') })})`;
           break;
         }
         case 'survive': {
@@ -504,18 +505,18 @@ export class Battle {
           const units = o.units || [];
           for (const u of units) {
             const s = this.squads.find((x) => x.t === u);
-            if (s && !s.alive) { failed = true; reason = `${UNIT_INFO[u].name} were knocked out.`; }
+            if (s && !s.alive) { failed = true; reason = t('{unit} were knocked out.', { unit: t(UNIT_INFO[u].name) }); }
           }
-          text = `${o.text} (${Math.min(ctx.phrasesDone, o.phrases)}/${o.phrases})`;
+          text = `${t(o.text)} (${Math.min(ctx.phrasesDone, o.phrases)}/${o.phrases})`;
           break;
         }
         case 'nobreak':
           done = true;
-          if (this.breakthrough > (o.allow || 0)) { failed = true; reason = 'The enemy broke through the line.'; }
+          if (this.breakthrough > (o.allow || 0)) { failed = true; reason = t('The enemy broke through the line.'); }
           break;
         case 'relay':
           done = ctx.relayed >= o.count;
-          text = `${o.text} (${ctx.relayed}/${o.count})`;
+          text = `${t(o.text)} (${ctx.relayed}/${o.count})`;
           break;
         default:
           done = true;
@@ -523,7 +524,7 @@ export class Battle {
       if (!done) allDone = false;
       status.push({ text, done });
     }
-    if (!this.aliveSquads().length) { failed = true; reason = 'Every squad is out of action.'; }
+    if (!this.aliveSquads().length) { failed = true; reason = t('Every squad is out of action.'); }
     if (this.noFail) failed = false;
     return { done: allDone && !failed, failed, reason, status };
   }
