@@ -155,7 +155,7 @@ export class DrillRun extends Session {
       grid.push({ t: this.t0 + u * this.unit, kind });
     }
     const letters = this.keyer.letters.map((l) => ({ start: l.start, end: l.end, label: l.sym || '?', q: l.q, offAir: l.offAir }));
-    this.app.tape.draw({ now, unit: this.unit, grid, windows, targets, targetLetters: tl, keyed: this.keyedForTape(), letters, report, keyDown: this.keyDown });
+    this.app.tape.draw({ now, unit: this.unit, grid, windows, targets, targetLetters: tl, keyed: this.keyedForTape(), letters, report, keyDown: this.keyDown, guide: this.gapGuide(now) });
     let lamp = false;
     for (const r of report) if (now >= r.t0 && now < r.t1) lamp = true;
     this.app.hud.drillLamp(lamp, ((now - this.t0) / this.beat) % 1);
@@ -243,7 +243,7 @@ export class FreeKeyRun extends Session {
     }
     const letters = this.keyer.letters.map((l) => ({ start: l.start, end: l.end, label: l.sym || '?', q: this.cfg.metronome ? l.q : 1 }));
     const keyed = this.keyedForTape().map((e) => (this.cfg.metronome ? e : { ...e, j: 1 }));
-    this.app.tape.draw({ now, unit: this.unit, grid, windows: [], targets: [], keyed, letters, report: [], keyDown: this.keyDown, lineFrac: 0.75 });
+    this.app.tape.draw({ now, unit: this.unit, grid, windows: [], targets: [], keyed, letters, report: [], keyDown: this.keyDown, lineFrac: 0.75, guide: this.gapGuide(now, true) });
   }
 }
 

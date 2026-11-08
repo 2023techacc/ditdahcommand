@@ -33,6 +33,8 @@ export const MISSIONS = [
       "Lieutenant Sparks? Corporal Ada Vance, signals. HQ has gone dark — you're in command now.",
       'All we have is this telegraph key. A short tap is a dit (·), a hold three times as long is a dah (—).',
       'Every order is WHO, WHAT, OVER. Tanks are T (—), Go is G (——·), and we close with K (—·—).',
+      'Spacing matters too. Inside a letter, leave one tick of silence. Between letters, wait three ticks.',
+      'After you let go, green marks scroll toward the key line: "NEXT LETTER" is where the next letter starts. Avoid the red patch — that gap is neither.',
       'Watch the tape. Key what it shows, right on the beat.',
     ],
   },

@@ -126,6 +126,33 @@ export class TapeView {
       g.fillText(tl.label, X(tl.t0), midY - holeH / 2 - 5);
     }
 
+    // Gap guide: where the current element should end, or when the next
+    // element / letter may start, measured from the player's own last edge.
+    for (const m of s.guide || []) {
+      if (m.kind === 'bad') {
+        if (m.t1 < tMin || m.t0 > tMax) continue;
+        g.fillStyle = 'rgba(200,64,45,0.16)';
+        g.fillRect(X(m.t0), 20, X(m.t1) - X(m.t0), H - 40);
+        continue;
+      }
+      if (m.t < tMin || m.t > tMax) continue;
+      const x = Math.round(X(m.t)) + 0.5;
+      const strong = m.kind === 'letter' || m.kind === 'dah';
+      g.strokeStyle = strong ? 'rgba(47,158,91,0.95)' : 'rgba(47,158,91,0.6)';
+      g.lineWidth = strong ? 2.5 : 1.5;
+      g.setLineDash(strong ? [] : [3, 3]);
+      g.beginPath();
+      g.moveTo(x, 20);
+      g.lineTo(x, H - 20);
+      g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = 'rgba(31,110,62,0.95)';
+      g.font = '800 10px system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.fillText(m.label, x, strong || m.kind === 'word' ? H - 7 : 29);
+      g.textAlign = 'left';
+    }
+
     // Keyed ink.
     const inkH = Math.max(4, holeH * 0.45);
     for (const k of s.keyed || []) {

@@ -124,6 +124,35 @@ export class Session {
     this.audio.silence();
   }
 
+  // Markers that teach Morse spacing from the player's own keying:
+  // while held: where a dit (1) and a dah (3) would end;
+  // after release: next element (1 tick), no-man's-land (2), next letter (3).
+  gapGuide(now, words = false) {
+    if (this.settings.gapGuide === false || !this.keyer) return [];
+    const k = this.keyer;
+    const snap = (t) => (k.judged ? k.judge(t).g : t);
+    if (k.isDown && k.cur) {
+      if (this.iambic) return [];
+      const g = snap(k.cur.down);
+      const u = k.gridFn(k.cur.down).unit;
+      return [
+        { kind: 'dit', t: g + u, label: '· ends' },
+        { kind: 'dah', t: g + 3 * u, label: '— ends' },
+      ];
+    }
+    if (k.lastUp === null || !k.history.length) return [];
+    const u = k.gridFn(k.lastUp).unit;
+    const g = snap(k.lastUp);
+    if (now > g + (words ? 8 : 4) * u) return [];
+    const out = [
+      { kind: 'el', t: g + u, label: 'same letter' },
+      { kind: 'bad', t0: g + 1.5 * u, t1: g + 2.5 * u },
+      { kind: 'letter', t: g + 3 * u, label: 'NEXT LETTER' },
+    ];
+    if (words) out.push({ kind: 'word', t: g + 7 * u, label: 'NEW WORD' });
+    return out;
+  }
+
   keyedForTape() {
     if (!this.keyer) return [];
     return this.keyer.history.map((e) => ({ down: e.down, up: e.up, j: e.up === null ? e.dj.j : e.j, offAir: e.offAir }));

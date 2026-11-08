@@ -860,7 +860,7 @@ export class MissionRun extends Session {
     const letters = this.keyer.letters.map((l) => ({ start: l.start, end: l.end, label: l.sym || '?', q: l.q, offAir: l.offAir }));
     app.tape.draw({
       now, unit: p.unit, grid: this.gridLines(now - span, now + span), windows, targets, targetLetters: tl,
-      keyed: this.keyedForTape(), letters, report, keyDown: this.keyDown,
+      keyed: this.keyedForTape(), letters, report, keyDown: this.keyDown, guide: this.gapGuide(now),
     });
     const beatPhase = now < p0.start ? 0 : ((now - p.start) / p.beat) % 1;
     app.map.draw(beatPhase, lamp);

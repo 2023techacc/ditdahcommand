@@ -32,7 +32,7 @@ const pct = (x) => Math.round(x * 100) + '%';
 const SAVE_KEY = 'ditdah-command.save.v1';
 const DEFAULT_SETTINGS = {
   difficulty: 'normal', playMode: 'standard', speed: 1, inputOffset: 0, visualOffset: 0,
-  visualOnly: false, haptics: true, ghost: 'ahead', showCodes: 'auto', noFail: false,
+  visualOnly: false, haptics: true, gapGuide: true, ghost: 'ahead', showCodes: 'auto', noFail: false,
   music: 0.8, tone: 0.8, sfx: 0.8, input: 'straight',
 };
 function loadSave() {
@@ -681,6 +681,7 @@ function settingsScreen(back) {
     row('Judgement windows', select('difficulty', [['easy', 'Easy — wider timing, shows all hints'], ['normal', 'Normal'], ['hard', 'Hard (−20%)']])),
     row('Mode', select('playMode', [['standard', 'Standard'], ['copilot', 'Copilot — order chosen for you'], ['strategist', 'Strategist — wide windows, harder enemy']])),
     row('Song speed', range('speed', 0.5, 1.5, 0.05, (v) => `${Math.round(v * 100)}%`)),
+    row('Gap guide', check('gapGuide'), 'Marks on the tape showing when a dit/dah ends and when the next letter may start'),
     row('Ghost track', select('ghost', [['ahead', 'One bar ahead'], ['sync', 'In sync'], ['off', 'Off']]), 'Faint guide tone for the suggested order'),
     row('Show codes on the order card', select('showCodes', [['auto', 'Until Act 4'], ['always', 'Always']])),
     row('No fail', check('noFail'), 'Units cannot be knocked out (rank capped at C)'),
